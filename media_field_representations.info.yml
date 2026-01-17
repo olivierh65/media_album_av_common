@@ -1,9 +1,0 @@
-name: Media Field Representations
-type: module
-description: 'Centralized field representation and widget building for media entities across modules.'
-core_version_requirement: ^10 || ^11
-package: Custom
-dependencies:
-  - drupal:media
-  - drupal:field
-  - drupal:taxonomy

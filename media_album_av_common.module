@@ -2,13 +2,13 @@
 
 /**
  * @file
- * Primary module hooks for Media Field Representations module.
+ * Primary module hooks for Media Album AV - Common module.
  */
 
 /**
  * Implements hook_theme().
  */
-function media_field_representations_theme($existing, $type, $theme, $path) {
+function media_album_av_common_theme($existing, $type, $theme, $path) {
   return [
     'media_field_view_embedded' => [
       'variables' => [

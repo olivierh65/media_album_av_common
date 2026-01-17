@@ -1,0 +1,25 @@
+services:
+  media_album_av_common.field_widget_factory:
+    class: Drupal\media_album_av_common\Services\FieldWidgetFactory
+    arguments:
+      - '@entity_type.manager'
+      - '@string_translation'
+
+  media_album_av_common.media_view_renderer:
+    class: Drupal\media_album_av_common\Service\MediaViewRendererService
+    arguments:
+      - '@entity_type.manager'
+      - '@config.factory'
+      - '@module_handler'
+
+  media_album_av_common.directory_service:
+    class: Drupal\media_album_av_common\Service\DirectoryService
+    arguments:
+      - '@entity_type.manager'
+      - '@file_system'
+      - '@logger.channel.media_album_av_common'
+
+  logger.channel.media_album_av_common:
+    class: Drupal\Core\Logger\LoggerChannel
+    factory: logger.factory:get
+    arguments: ['media_album_av_common']

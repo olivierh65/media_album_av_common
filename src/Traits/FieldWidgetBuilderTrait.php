@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\media_field_representations\Traits;
+namespace Drupal\media_album_av_common\Traits;
 
 use Drupal\Core\Url;
 

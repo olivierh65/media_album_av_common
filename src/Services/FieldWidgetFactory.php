@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\media_field_representations\Services;
+namespace Drupal\media_album_av_common\Services;
 
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;

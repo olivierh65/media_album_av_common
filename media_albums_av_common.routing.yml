@@ -1,0 +1,50 @@
+.directory_create_term:
+  path: '/admin//directory/create-term'
+  defaults:
+    _controller: '\Drupal\\Controller\TaxonomyDirectoryController::createTerm'
+  requirements:
+    _permission: 'manage media_drop albums'
+  options:
+    no_cache: TRUE
+  methods: [POST]
+
+.directory_delete_term:
+  path: '/admin//directory/delete-term'
+  defaults:
+    _controller: '\Drupal\\Controller\TaxonomyDirectoryController::deleteTerm'
+  requirements:
+    _permission: 'manage media_drop albums'
+  options:
+    no_cache: TRUE
+  methods: [POST]
+
+.directory_move_term:
+  path: '/admin//directory/move-term'
+  defaults:
+    _controller: '\Drupal\\Controller\TaxonomyDirectoryController::moveTerm'
+  requirements:
+    _permission: 'manage media_drop albums'
+  options:
+    no_cache: TRUE
+  methods: [POST]
+
+.directory_update_term:
+  path: '/admin//directory/update-term'
+  defaults:
+    _controller: '\Drupal\\Controller\TaxonomyDirectoryController::updateTerm'
+  requirements:
+    _permission: 'manage media_drop albums'
+  options:
+    no_cache: TRUE
+  methods: [POST]
+
+.directory_get_term:
+  path: '/admin//directory/get-term/{term_id}'
+  defaults:
+    _controller: '\Drupal\\Controller\TaxonomyDirectoryController::getTerm'
+  requirements:
+    _permission: 'manage media_drop albums'
+    term_id: '\d+'
+  options:
+    no_cache: TRUE
+  methods: [GET]

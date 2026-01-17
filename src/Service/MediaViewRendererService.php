@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\media_field_representations\Service;
+namespace Drupal\media_album_av_common\Service;
 
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;

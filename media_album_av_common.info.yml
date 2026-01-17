@@ -1,0 +1,10 @@
+name: Media Album AV - Common
+type: module
+description: 'Centralized common code, services, and configurations for Media Album AV ecosystem.'
+core_version_requirement: ^10 || ^11
+package: Custom
+dependencies:
+  - drupal:media
+  - drupal:field
+  - drupal:taxonomy
+  - drupal:views

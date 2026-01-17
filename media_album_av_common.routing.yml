@@ -1,7 +1,7 @@
 .directory_create_term:
   path: '/admin//directory/create-term'
   defaults:
-    _controller: '\Drupal\\Controller\TaxonomyDirectoryController::createTerm'
+    _controller: '\Drupal\media_album_av_common\Controller\TaxonomyDirectoryController::createTerm'
   requirements:
     _permission: 'manage media_drop albums'
   options:
@@ -11,7 +11,7 @@
 .directory_delete_term:
   path: '/admin//directory/delete-term'
   defaults:
-    _controller: '\Drupal\\Controller\TaxonomyDirectoryController::deleteTerm'
+    _controller: '\Drupal\media_album_av_common\Controller\TaxonomyDirectoryController::deleteTerm'
   requirements:
     _permission: 'manage media_drop albums'
   options:
@@ -21,7 +21,7 @@
 .directory_move_term:
   path: '/admin//directory/move-term'
   defaults:
-    _controller: '\Drupal\\Controller\TaxonomyDirectoryController::moveTerm'
+    _controller: '\Drupal\media_album_av_common\Controller\TaxonomyDirectoryController::moveTerm'
   requirements:
     _permission: 'manage media_drop albums'
   options:
@@ -31,7 +31,7 @@
 .directory_update_term:
   path: '/admin//directory/update-term'
   defaults:
-    _controller: '\Drupal\\Controller\TaxonomyDirectoryController::updateTerm'
+    _controller: '\Drupal\media_album_av_common\Controller\TaxonomyDirectoryController::updateTerm'
   requirements:
     _permission: 'manage media_drop albums'
   options:
@@ -41,7 +41,7 @@
 .directory_get_term:
   path: '/admin//directory/get-term/{term_id}'
   defaults:
-    _controller: '\Drupal\\Controller\TaxonomyDirectoryController::getTerm'
+    _controller: '\Drupal\media_album_av_common\Controller\TaxonomyDirectoryController::getTerm'
   requirements:
     _permission: 'manage media_drop albums'
     term_id: '\d+'

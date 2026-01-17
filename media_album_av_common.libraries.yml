@@ -28,3 +28,13 @@ taxonomy-manager:
   dependencies:
     - core/jquery
     - /jstree
+
+dragula:
+  version: 3.7.3
+  js:
+    js/dragula/dragula.js: {}
+  css:
+    theme:
+      css/dragula/dragula.css: {}
+  dependencies:
+    - core/jquery

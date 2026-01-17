@@ -1,0 +1,6 @@
+services:
+  media_field_representations.field_widget_factory:
+    class: Drupal\media_field_representations\Services\FieldWidgetFactory
+    arguments:
+      - '@entity_type.manager'
+      - '@string_translation'

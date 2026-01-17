@@ -1,0 +1,51 @@
+{#
+/**
+ * @file
+ * Template for embedded media view data in field widgets.
+ *
+ * Available variables:
+ * - data: Structured data from the View
+ *   - items: Array of media items (if no grouping)
+ *   - groups: Array of grouped items (if grouping enabled)
+ *   - settings: View display settings
+ * - view_id: The view ID
+ * - display_id: The display ID
+ */
+#}
+
+<div class="media-field-embedded-view" data-view-id="{{ view_id }}" data-display-id="{{ display_id }}">
+  
+  {% if data.settings.has_grouping %}
+    {# Affichage avec regroupements #}
+    {% for group in data.groups %}
+      <div class="media-group">
+        {% if group.label %}
+          <h3 class="media-group-title">{{ group.label }}</h3>
+        {% endif %}
+        
+        <div class="media-grid media-grid--columns-{{ data.settings.grid_columns }} draggable-flexgrid">
+          {% for item in group.items %}
+            <div class="media-grid-item draggable-item" 
+                 data-media-id="{{ item.id }}"
+                 data-entity-id="media:{{ item.id }}">
+              {{ item.rendered }}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+    
+  {% else %}
+    {# Affichage sans regroupement #}
+    <div class="media-grid media-grid--columns-{{ data.settings.grid_columns }} draggable-flexgrid">
+      {% for item in data.items %}
+        <div class="media-grid-item draggable-item" 
+             data-media-id="{{ item.id }}"
+             data-entity-id="media:{{ item.id }}">
+          {{ item.rendered }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  
+</div>

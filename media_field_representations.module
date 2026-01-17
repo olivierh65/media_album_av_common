@@ -1,0 +1,23 @@
+<?php
+
+/**
+ * @file
+ * Primary module hooks for Media Field Representations module.
+ */
+
+/**
+ * Implements hook_theme().
+ */
+function media_field_representations_theme($existing, $type, $theme, $path) {
+  return [
+    'media_field_view_embedded' => [
+      'variables' => [
+        'data' => [],
+        'view_id' => NULL,
+        'display_id' => NULL,
+      ],
+      'path' => $path . '/templates',
+      'template' => 'media-field-view-embedded',
+    ],
+  ];
+}

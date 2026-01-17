@@ -201,35 +201,6 @@ trait FieldWidgetBuilderTrait {
   }
 
   /**
-   * Get a setting from field config with fallback.
-   *
-   * @param object $field_config
-   *   The field configuration.
-   * @param string $setting_name
-   *   The setting name.
-   * @param mixed $default
-   *   Default value if setting not found.
-   *
-   * @return mixed
-   *   The setting value.
-   */
-  protected function getSetting($field_config, $setting_name, $default = NULL) {
-    if (empty($field_config)) {
-      return $default;
-    }
-
-    if (method_exists($field_config, 'getSetting')) {
-      return $field_config->getSetting($setting_name) ?? $default;
-    }
-
-    if (method_exists($field_config, 'get') && is_callable([$field_config, 'get'])) {
-      return $field_config->get($setting_name) ?? $default;
-    }
-
-    return $default;
-  }
-
-  /**
    * Get allowed values for a list field.
    *
    * @param object $field_config
@@ -268,12 +239,14 @@ trait FieldWidgetBuilderTrait {
    *   The string to translate.
    * @param array $args
    *   Translation arguments.
+   * @param array $options
+   *   Additional translation options.
    *
    * @return string
    *   The translated string.
    */
-  protected function t($string, array $args = []) {
-    return t($string, $args);
+  protected function t($string, array $args = [], array $options = []) {
+    return t($string, $args, $options);
   }
 
 }

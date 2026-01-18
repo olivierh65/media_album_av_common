@@ -4,10 +4,10 @@ namespace Drupal\media_album_av_common\Service;
 
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\File\FileSystemInterface;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\taxonomy\Entity\Term;
 use Drupal\media\MediaInterface;
 use Drupal\field\Entity\FieldConfig;
-use Psr\Log\LoggerInterface;
 
 /**
  * Service for managing taxonomy-based directories with jstree.
@@ -29,11 +29,11 @@ class DirectoryService {
   protected $fileSystem;
 
   /**
-   * The logger service.
+   * The logger factory.
    *
-   * @var Psr\Log\LoggerInterface
+   * @var \Drupal\Core\Logger\LoggerChannelFactoryInterface
    */
-  protected $logger;
+  protected $loggerFactory;
 
   /**
    * Constructs a DirectoryService object.
@@ -41,11 +41,21 @@ class DirectoryService {
   public function __construct(
     EntityTypeManagerInterface $entity_type_manager,
     FileSystemInterface $file_system,
-    LoggerInterface $logger,
+    LoggerChannelFactoryInterface $logger_factory,
   ) {
     $this->entityTypeManager = $entity_type_manager;
     $this->fileSystem = $file_system;
-    $this->logger = $logger;
+    $this->loggerFactory = $logger_factory;
+  }
+
+  /**
+   * Get the logger channel for this service.
+   *
+   * @return \Psr\Log\LoggerInterface
+   *   The logger channel.
+   */
+  protected function getLogger() {
+    return $this->loggerFactory->get('media_album_av_common');
   }
 
   /**
@@ -345,7 +355,7 @@ class DirectoryService {
       }
     }
     catch (\Exception $e) {
-      $this->logger->error(
+      $this->getLogger()->error(
       'Failed to create base directory @dir: @message',
       [
         '@dir' => $base_directory,
@@ -385,7 +395,7 @@ class DirectoryService {
       }
     }
     catch (\Exception $e) {
-      $this->logger->error(
+      $this->getLogger()->error(
       'Failed to create directory @dir for term @tid: @message',
       [
         '@dir' => $current_directory,
@@ -514,7 +524,7 @@ class DirectoryService {
       // Get the base directory for the URI scheme.
       $wrapper = \Drupal::service('stream_wrapper_manager')->getViaScheme($uri_scheme);
       if (!$wrapper) {
-        $this->logger->warning('No stream wrapper found for scheme @scheme', [
+        $this->getLogger()->warning('No stream wrapper found for scheme @scheme', [
           '@scheme' => $uri_scheme,
         ]);
         return FALSE;
@@ -534,7 +544,7 @@ class DirectoryService {
       return TRUE;
     }
     catch (\Exception $e) {
-      $this->logger->error('Error ensuring term directory exists: @message', [
+      $this->getLogger()->error('Error ensuring term directory exists: @message', [
         '@message' => $e->getMessage(),
       ]);
       return FALSE;
@@ -563,14 +573,14 @@ class DirectoryService {
       // Get the media URI scheme first.
       $uri_scheme = $this->getMediaURIScheme($media);
       if (!$uri_scheme) {
-        $this->logger->notice('Could not determine URI scheme for media @mid', ['@mid' => $media->id()]);
+        $this->getLogger()->notice('Could not determine URI scheme for media @mid', ['@mid' => $media->id()]);
         return FALSE;
       }
 
       // If a new term is specified, ensure the directory structure exists.
       if ($new_term_id && $new_term_id > 0) {
         if (!$this->ensureTermDirectoryExists($new_term_id, $uri_scheme)) {
-          $this->logger->warning('Could not ensure term directory exists for term @tid', [
+          $this->getLogger()->warning('Could not ensure term directory exists for term @tid', [
             '@tid' => $new_term_id,
           ]);
         }
@@ -583,7 +593,7 @@ class DirectoryService {
       $file_fields = $this->getMediaFileFields($media);
 
       if (empty($file_fields)) {
-        $this->logger->notice('Media @mid has no file fields', ['@mid' => $media->id()]);
+        $this->getLogger()->notice('Media @mid has no file fields', ['@mid' => $media->id()]);
         return TRUE;
       }
 
@@ -608,7 +618,7 @@ class DirectoryService {
 
                 // Skip if already in the right location.
                 if ($old_uri === $new_uri) {
-                  $this->logger->debug('File @file already in target location', ['@file' => $filename]);
+                  $this->getLogger()->debug('File @file already in target location', ['@file' => $filename]);
                   continue;
                 }
 
@@ -631,7 +641,7 @@ class DirectoryService {
                     if (empty($usage)) {
                       // Ré-enregistrer l'usage si perdu.
                       $file_usage->add($file, 'file', 'media', $media->id());
-                      $this->logger->warning('Had to re-add file_usage for file @fid', ['@fid' => $file->id()]);
+                      $this->getLogger()->warning('Had to re-add file_usage for file @fid', ['@fid' => $file->id()]);
                     }
 
                     // Clear image style derivatives for images.
@@ -641,21 +651,21 @@ class DirectoryService {
 
                     $moved_any = TRUE;
 
-                    $this->logger->info('Moved file from @old to @new (file @fid)', [
+                    $this->getLogger()->info('Moved file from @old to @new (file @fid)', [
                       '@old' => $old_uri,
                       '@new' => $result,
                       '@fid' => $file->id(),
                     ]);
                   }
                   else {
-                    $this->logger->warning('Failed to move file @old to @new', [
+                    $this->getLogger()->warning('Failed to move file @old to @new', [
                       '@old' => $old_uri,
                       '@new' => $new_uri,
                     ]);
                   }
                 }
                 catch (\Exception $e) {
-                  $this->logger->warning('Exception moving file @old to @new: @error', [
+                  $this->getLogger()->warning('Exception moving file @old to @new: @error', [
                     '@old' => $old_uri,
                     '@new' => $new_uri,
                     '@error' => $e->getMessage(),
@@ -671,7 +681,7 @@ class DirectoryService {
       $file = $this->entityTypeManager->getStorage('file')->load($value['target_id']);
       if ($file) {
         $usage = $file_usage->listUsage($file);
-        $this->logger->info('Post-move check for file @fid: status=@status, usage=@usage', [
+        $this->getLogger()->info('Post-move check for file @fid: status=@status, usage=@usage', [
           '@fid' => $file->id(),
           '@status' => $file->get('status')->value,
           '@usage' => json_encode($usage),
@@ -681,7 +691,7 @@ class DirectoryService {
       return $moved_any;
     }
     catch (\Exception $e) {
-      $this->logger->error('Error moving media files: @message', [
+      $this->getLogger()->error('Error moving media files: @message', [
         '@message' => $e->getMessage(),
       ]);
       return FALSE;
@@ -731,7 +741,7 @@ class DirectoryService {
       return implode('/', $path_parts);
     }
     catch (\Exception $e) {
-      $this->logger->error('Error building directory path: @message', [
+      $this->getLogger()->error('Error building directory path: @message', [
         '@message' => $e->getMessage(),
       ]);
       return '';
@@ -767,7 +777,7 @@ class DirectoryService {
       }
     }
     catch (\Exception $e) {
-      $this->logger->error('Error getting media file fields: @message', [
+      $this->getLogger()->error('Error getting media file fields: @message', [
         '@message' => $e->getMessage(),
       ]);
     }

@@ -1,0 +1,84 @@
+{#
+/**
+ * @file
+ * Template for individual media light table item.
+ */
+#}
+{% set media = prepared_row.media %}
+{% set media_id = prepared_row.media_id %}
+{% set media_label = prepared_row.media_label %}
+{% set media_bundle = prepared_row.media_bundle %}
+{% set thumbnail_url = prepared_row.thumbnail_url %}
+{% set is_selected = prepared_row.is_selected %}
+
+{% if media %}
+  <div class="media-item {{ is_selected ? 'selected' : '' }} media-type-{{ media_bundle }}"
+       data-media-id="{{ media_id }}"
+       data-media-type="{{ media_bundle }}"
+       draggable="true">
+
+    {# Checkbox de sélection #}
+    <div class="selection-checkbox">
+      <input type="checkbox"
+             class="media-select"
+             value="{{ media_id }}"
+             {% if is_selected %}checked{% endif %}>
+    </div>
+
+    {# Thumbnail #}
+    <div class="thumbnail-wrapper">
+      {% if thumbnail_url %}
+        <img src="{{ thumbnail_url }}"
+             alt="{{ media_label }}"
+             class="media-thumbnail"
+             style="width: 100%; height: 100%; object-fit: cover; display: block;">
+      {% else %}
+        {# Fallback: Icône si pas de thumbnail #}
+        <div class="media-icon">
+          {% if media_bundle == 'image' %}📷
+          {% elseif media_bundle == 'video' %}🎬
+          {% elseif media_bundle == 'audio' %}🎵
+          {% elseif media_bundle == 'document' %}📄
+          {% else %}📁
+          {% endif %}
+        </div>
+      {% endif %}
+
+      {# Badge de type #}
+      <span class="type-badge">{{ media_bundle|upper|slice(0, 1) }}</span>
+    </div>
+
+    {# Infos #}
+    <div class="media-info">
+      <div class="title" title="{{ media_label }}">
+        {{ media_label|truncate(20) }}
+      </div>
+
+      <div class="type">
+        {{ media_bundle }}
+      </div>
+
+      {% if config.show_metadata %}
+        <div class="metadata">
+          {# ID #}
+          <span class="meta id">
+            ID: {{ media_id }}
+          </span>
+        </div>
+      {% endif %}
+    </div>
+
+    {# Handle pour drag & drop #}
+    {% if config.draggable %}
+      <div class="drag-handle" title="{{ 'Drag to reorder'|t }}">
+        <i class="fas fa-grip-vertical"></i>
+      </div>
+    {% endif %}
+  </div>
+{% else %}
+  {# Si pas de média, afficher un message de debug #}
+  <div class="media-item error" style="background: #fff0f0; border-color: #dc3545;">
+    <div class="media-icon">❌</div>
+    <div class="title">No media</div>
+  </div>
+{% endif %}

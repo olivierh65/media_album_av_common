@@ -10,14 +10,16 @@
  */
 function media_album_av_common_theme($existing, $type, $theme, $path) {
   return [
-    'media_field_view_embedded' => [
+    'media_light_table' => [
       'variables' => [
-        'data' => [],
-        'view_id' => NULL,
-        'display_id' => NULL,
+      'theme' => [],
+      'view' => [],
+      'options' => [],
+      'groups' => [],
       ],
       'path' => $path . '/templates',
-      'template' => 'media-field-view-embedded',
+      'template' => 'media-light-table',
     ],
   ];
 }
+

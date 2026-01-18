@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\media_album_av_common\Services;
+namespace Drupal\media_album_av_common\Service;
 
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
@@ -267,12 +267,12 @@ class FieldWidgetFactory {
 
     if (method_exists($field_config, 'getSetting')) {
       $value = $field_config->getSetting($setting_name);
-      return $value !== NULL ? $value : $default;
+      return $value ?? $default;
     }
 
     if (method_exists($field_config, 'get')) {
       $value = $field_config->get($setting_name);
-      return $value !== NULL ? $value : $default;
+      return $value ?? $default;
     }
 
     return $default;

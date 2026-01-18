@@ -3,7 +3,7 @@
 namespace Drupal\media_album_av_common\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\\Service\DirectoryService;
+use Drupal\media_album_av_common\Service\DirectoryService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;

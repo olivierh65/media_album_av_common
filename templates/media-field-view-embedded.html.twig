@@ -1,51 +1,259 @@
 {#
 /**
  * @file
- * Template for embedded media view data in field widgets.
+ * Template for embedded media field view with grouping (light table).
  *
  * Available variables:
- * - data: Structured data from the View
- *   - items: Array of media items (if no grouping)
- *   - groups: Array of grouped items (if grouping enabled)
- *   - settings: View display settings
- * - view_id: The view ID
- * - display_id: The display ID
+ * - data: Array containing view data.
+ * - view_id: The view machine name.
+ * - display_id: The view display machine name.
+ * - selected_ids: Array of selected media IDs.
+ * - attributes: HTML attributes for the wrapper element.
+ * - is_light_table: Boolean indicating if this is a light table view.
+ * - has_groups: Boolean indicating if view has groups.
+ * - groups: Array of grouped results.
+ * - ungrouped_rows: Array of rows without groups.
+ * - group_field: The field used for grouping.
+ * - group_label_field: The field used for group labels.
+ *
+ * @ingroup themeable
  */
 #}
+<div{{ attributes.addClass('light-table-container') }}>
+  {# En-tête de la light table #}
+  <div class="light-table-header">
+    <h2 class="light-table-title">
+      <i class="fas fa-images"></i> {{ 'Light Table'|t }}
+    </h2>
+    <div class="light-table-stats">
+      <span class="total-media">
+        <i class="fas fa-layer-group"></i> {{ data.total_rows }} {{ 'media'|t }}
+      </span>
+      {% if selected_ids is not empty %}
+        <span class="selected-media">
+          <i class="fas fa-check-circle"></i> {{ selected_ids|length }} {{ 'selected'|t }}
+        </span>
+      {% endif %}
+    </div>
+  </div>
 
-<div class="media-field-embedded-view" data-view-id="{{ view_id }}" data-display-id="{{ display_id }}">
-  
-  {% if data.settings.has_grouping %}
-    {# Affichage avec regroupements #}
-    {% for group in data.groups %}
-      <div class="media-group">
-        {% if group.label %}
-          <h3 class="media-group-title">{{ group.label }}</h3>
+  {# Filtres rapides #}
+  <div class="light-table-filters">
+    <div class="filter-group">
+      <input type="text"
+             class="media-search"
+             placeholder="{{ 'Search media...'|t }}"
+             data-search-target=".media-grid-item">
+      <button type="button" class="filter-btn" data-filter="all">{{ 'All'|t }}</button>
+      <button type="button" class="filter-btn" data-filter="selected">{{ 'Selected'|t }}</button>
+      <button type="button" class="filter-btn" data-filter="unselected">{{ 'Unselected'|t }}</button>
+    </div>
+  </div>
+
+  {# Navigation par groupes #}
+  {% if has_groups and groups is not empty %}
+    <div class="group-navigation">
+      <div class="group-tabs">
+        {% for group in groups %}
+          <button type="button"
+                  class="group-tab {% if loop.first %}active{% endif %}"
+                  data-group="{{ group.value|lower|replace({' ': '-'}) }}">
+            {{ group.label }}
+            {% if group.selected_count is defined and group.selected_count > 0 %}
+              <span class="selected-badge">{{ group.selected_count }}</span>
+            {% endif %}
+            <span class="count-badge">{{ group.rows|length }}</span>
+          </button>
+        {% endfor %}
+
+        {% if ungrouped_rows is not empty %}
+          <button type="button"
+                  class="group-tab"
+                  data-group="ungrouped">
+            {{ 'Other'|t }}
+            <span class="count-badge">{{ ungrouped_rows|length }}</span>
+          </button>
         {% endif %}
-        
-        <div class="media-grid media-grid--columns-{{ data.settings.grid_columns }} draggable-flexgrid">
-          {% for item in group.items %}
-            <div class="media-grid-item draggable-item" 
-                 data-media-id="{{ item.id }}"
-                 data-entity-id="media:{{ item.id }}">
-              {{ item.rendered }}
-            </div>
-          {% endfor %}
-        </div>
       </div>
-    {% endfor %}
-    
-  {% else %}
-    {# Affichage sans regroupement #}
-    <div class="media-grid media-grid--columns-{{ data.settings.grid_columns }} draggable-flexgrid">
-      {% for item in data.items %}
-        <div class="media-grid-item draggable-item" 
-             data-media-id="{{ item.id }}"
-             data-entity-id="media:{{ item.id }}">
-          {{ item.rendered }}
-        </div>
-      {% endfor %}
     </div>
   {% endif %}
-  
+
+  {# Contenu principal #}
+  <div class="light-table-content">
+    {# Section VBO (actions en masse) #}
+    {% if data.view %}
+      <div class="vbo-toolbar">
+        {{ data.view }}
+      </div>
+    {% endif %}
+
+    {# Affichage par groupes #}
+    {% if has_groups and groups is not empty %}
+      {% for group in groups %}
+        <div class="media-group {% if loop.first %}active{% endif %}"
+             id="group-{{ group.value|lower|replace({' ': '-'}) }}"
+             data-group="{{ group.value|lower|replace({' ': '-'}) }}">
+
+          <div class="group-header">
+            <h3 class="group-title">
+              <span class="group-label">{{ group.label }}</span>
+              <span class="group-count">({{ group.rows|length }})</span>
+            </h3>
+
+            {% if group.selected_count is defined and group.selected_count > 0 %}
+              <div class="group-selection-info">
+                <i class="fas fa-check"></i>
+                {{ group.selected_count }} {{ 'selected in this group'|t }}
+              </div>
+            {% endif %}
+          </div>
+
+          <div class="group-grid"
+               style="--grid-columns: {{ data.columns }};
+                      --grid-gap: {{ data.gap }};
+                      --grid-justify: {{ data.justify }};
+                      --grid-align: {{ data.align }};">
+            {% for row in group.rows %}
+              {% if row._entity %}
+                {% set media = row._entity %}
+                {% set is_selected = media.id in selected_ids %}
+
+                <div class="media-grid-item {{ is_selected ? 'selected' : '' }}"
+                     data-media-id="{{ media.id }}"
+                     data-media-type="{{ media.bundle }}"
+                     data-media-name="{{ media.label|lower }}"
+                     data-selected="{{ is_selected ? 'true' : 'false' }}">
+
+                  {# Case à cocher #}
+                  <div class="media-selector">
+                    <input type="checkbox"
+                           class="vbo-select form-checkbox"
+                           value="{{ media.id }}"
+                           {% if is_selected %}checked{% endif %}
+                           data-group="{{ group.value|lower|replace({' ': '-'}) }}">
+                  </div>
+
+                  {# Miniature #}
+                  <div class="media-thumbnail">
+                    {% if media.hasField('thumbnail') and not media.thumbnail.isEmpty %}
+                      {{ media.thumbnail.view({type: 'image', settings: {image_style: 'thumbnail'}}) }}
+                    {% elseif media.hasField('field_media_image') and not media.field_media_image.isEmpty %}
+                      {{ media.field_media_image.view({type: 'image', settings: {image_style: 'thumbnail'}}) }}
+                    {% else %}
+                      <div class="no-thumbnail">
+                        <i class="fas fa-file"></i>
+                        <span>{{ media.bundle.entity.label }}</span>
+                      </div>
+                    {% endif %}
+
+                    {# Overlay d'information #}
+                    <div class="media-overlay">
+                      <div class="overlay-content">
+                        <h4>{{ media.label }}</h4>
+                        <div class="media-meta">
+                          <span class="media-type">{{ media.bundle.entity.label }}</span>
+                          {% if media.hasField('created') %}
+                            <span class="media-date">
+                              {{ media.created.value|date('Y-m-d') }}
+                            </span>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {# Info basique #}
+                  <div class="media-info">
+                    <div class="media-name">{{ media.label|truncate(20) }}</div>
+                    <div class="media-type-badge">{{ media.bundle.entity.label|first|upper }}</div>
+                  </div>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+
+      {# Section non-groupée #}
+      {% if ungrouped_rows is not empty %}
+        <div class="media-group" id="group-ungrouped" data-group="ungrouped">
+          <div class="group-header">
+            <h3 class="group-title">
+              <span class="group-label">{{ 'Other Media'|t }}</span>
+              <span class="group-count">({{ ungrouped_rows|length }})</span>
+            </h3>
+          </div>
+
+          <div class="group-grid">
+            {% for row in ungrouped_rows %}
+              {% if row._entity %}
+                {% set media = row._entity %}
+                {% set is_selected = media.id in selected_ids %}
+
+                <div class="media-grid-item {{ is_selected ? 'selected' : '' }}"
+                     data-media-id="{{ media.id }}">
+                  {# Même structure que ci-dessus #}
+                  <div class="media-selector">
+                    <input type="checkbox"
+                           class="vbo-select form-checkbox"
+                           value="{{ media.id }}"
+                           {% if is_selected %}checked{% endif %}>
+                  </div>
+
+                  <div class="media-thumbnail">
+                    {% if media.hasField('thumbnail') and not media.thumbnail.isEmpty %}
+                      {{ media.thumbnail.view({type: 'image', settings: {image_style: 'thumbnail'}}) }}
+                    {% else %}
+                      <div class="no-thumbnail">
+                        <i class="fas fa-file"></i>
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  <div class="media-info">
+                    <div class="media-name">{{ media.label }}</div>
+                  </div>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+    {% else %}
+      {# Version sans regroupement #}
+      <div class="media-grid simple-grid">
+        {% for row in data.rows %}
+          {% if row._entity %}
+            {% set media = row._entity %}
+            <div class="media-grid-item">
+              {# Même structure que ci-dessus #}
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
+  {# Pied de page avec sélection #}
+  <div class="light-table-footer">
+    <div class="selection-summary">
+      <span class="selection-count">{{ selected_ids|length }}</span> {{ 'media selected'|t }}
+    </div>
+
+    <div class="selection-actions">
+      <button type="button" class="btn btn-secondary clear-selection">
+        <i class="fas fa-times"></i> {{ 'Clear selection'|t }}
+      </button>
+      <button type="button" class="btn btn-primary apply-selection">
+        <i class="fas fa-check"></i> {{ 'Apply selection'|t }}
+      </button>
+    </div>
+  </div>
+
+  {# Champ caché pour la sélection #}
+  <input type="hidden"
+         class="selected-media-ids"
+         value="{{ selected_ids|join(',') }}"
+         data-field-context="light-table">
 </div>

@@ -38,3 +38,15 @@ dragula:
       css/dragula/dragula.css: {}
   dependencies:
     - core/jquery
+
+media-light-table:
+  version: 1.x
+  css:
+    theme:
+      css/media-light-table.css: {}
+  js:
+    js/media-light-table.js: {}
+  dependencies:
+    - core/drupal
+    - core/once
+    - /dragula

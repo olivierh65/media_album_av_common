@@ -11,15 +11,20 @@ services:
       - '@entity_type.manager'
       - '@config.factory'
       - '@module_handler'
+      - '@renderer'
+      - '@file_url_generator'
+      - '@entity_field.manager'
+      - '@logger.factory'
 
   media_album_av_common.directory_service:
     class: Drupal\media_album_av_common\Service\DirectoryService
     arguments:
       - '@entity_type.manager'
       - '@file_system'
-      - '@logger.channel.media_album_av_common'
+      - '@logger.factory'
 
-  logger.channel.media_album_av_common:
-    class: Drupal\Core\Logger\LoggerChannel
-    factory: logger.factory:get
-    arguments: ['media_album_av_common']
+  media_album_av_common.media_order_controller:
+    class: Drupal\media_album_av_common\Controller\MediaOrderController
+    arguments:
+      - '@logger.factory'
+

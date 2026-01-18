@@ -1,0 +1,247 @@
+{#
+/**
+ * @file
+ * Template for media light table.
+ *
+ * Available variables:
+ * - view: The View object
+ * - groups: Hierarchical array of groups containing albums and media
+ * - options: View options
+ * - grouping_criteria: Array of grouping criteria used
+ * - selected_ids: Array of selected media IDs
+ * - config: Configuration array
+ * - attributes: HTML attributes for the wrapper
+ *
+ * @ingroup themeable
+ */
+#}
+<div{{ attributes }} data-grouping-criteria="{{ grouping_criteria|json_encode }}" data-view-id="{{ view.id }}" data-display-id="{{ view.current_display }}">
+
+  {# Header #}
+  <div class="light-table-header">
+    <div class="header-left">
+      <h2 class="light-table-title">
+        <i class="fas fa-th-large"></i>
+        {{ 'Light Table'|t }}
+      </h2>
+
+      <div class="stats">
+        {% set total_media = 0 %}
+        {% for group in groups %}
+          {% for album in group.albums %}
+            {% set total_media = total_media + album.medias|length %}
+          {% endfor %}
+        {% endfor %}
+
+        <span class="stat total">
+          <i class="fas fa-layer-group"></i>
+          <strong>{{ total_media }}</strong> {{ 'items'|t }}
+        </span>
+
+        {% if selected_ids|length > 0 %}
+          <span class="stat selected">
+            <i class="fas fa-check-circle"></i>
+            <strong>{{ selected_ids|length }}</strong> {{ 'selected'|t }}
+          </span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="actions">
+        <button type="button" class="btn btn-sm btn-outline-secondary select-all">
+          {{ 'Select all'|t }}
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary deselect-all">
+          {{ 'Deselect all'|t }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {# Main content #}
+  <div class="light-table-content">
+    {% if groups is empty %}
+      <div class="no-media">
+        <i class="fas fa-images fa-3x"></i>
+        <h3>{{ 'No media found'|t }}</h3>
+        <p>{{ 'Add media to get started.'|t }}</p>
+      </div>
+    {% else %}
+      {# Iterate through groups #}
+      {% for group_index, group in groups %}
+        <div class="media-group">
+          {% if group.title %}
+            <h3 class="group-title">{{ group.title }}</h3>
+          {% endif %}
+
+          {# Iterate through albums in group #}
+          {% for album in group.albums %}
+            <div class="album-container">
+              {% if album.title %}
+                <h4 class="album-title">{{ album.title }}</h4>
+              {% endif %}
+
+              {% if album.author %}
+                <div class="album-author">
+                  <strong>{{ 'By'|t }}:</strong> {{ album.author }}
+                </div>
+              {% endif %}
+
+              {% if album.description %}
+                <div class="album-description">
+                  {{ album.description }}
+                </div>
+              {% endif %}
+
+              {# Media grid for this album #}
+              <div class="media-grid" style="
+                display: grid;
+                grid-template-columns: repeat({{ config.columns }}, 1fr);
+                gap: {{ config.gap }};
+              ">
+                {% for media in album.medias %}
+                  <div class="media-item"
+                       data-media-id="{{ album.id }}-{{ loop.index }}"
+                       data-group-index="{{ group_index }}"
+                       data-album-index="{{ loop.index0 }}"
+                       data-group-title="{{ group.title }}"
+                       data-album-title="{{ album.title }}">
+                    <div class="media-wrapper">
+                      {% if media.thumbnail %}
+                        <div class="media-thumbnail">
+                          <img src="{{ media.thumbnail }}" alt="{{ media.title }}" />
+                          {% if media.mime_type %}
+                            <div class="media-type-badge">
+                              {% if media.mime_type starts with 'video' %}
+                                <i class="fas fa-play"></i>
+                              {% elseif media.mime_type starts with 'audio' %}
+                                <i class="fas fa-music"></i>
+                              {% else %}
+                                <i class="fas fa-image"></i>
+                              {% endif %}
+                            </div>
+                          {% endif %}
+                        </div>
+                      {% endif %}
+
+                      {% if media.title %}
+                        <div class="media-info">
+                          <h5 class="media-title">{{ media.title }}</h5>
+                        </div>
+                      {% endif %}
+
+                      {% if media.url %}
+                        <div class="media-actions">
+                          <a href="{{ media.url }}" target="_blank" class="btn btn-sm btn-link">
+                            <i class="fas fa-external-link-alt"></i>
+                            {{ 'View'|t }}
+                          </a>
+                        </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+
+          {# Handle subgroups if they exist #}
+          {% if group.subgroups is not empty %}
+            <div class="subgroups-container">
+              {% for subgroup in group.subgroups %}
+                <div class="media-subgroup">
+                  {% if subgroup.title %}
+                    <h4 class="subgroup-title">{{ subgroup.title }}</h4>
+                  {% endif %}
+
+                  {% for album in subgroup.albums %}
+                    <div class="album-container">
+                      {% if album.title %}
+                        <h5 class="album-title">{{ album.title }}</h5>
+                      {% endif %}
+
+                      <div class="media-grid" style="
+                        display: grid;
+                        grid-template-columns: repeat({{ config.columns }}, 1fr);
+                        gap: {{ config.gap }};
+                      ">
+                        {% for media in album.medias %}
+                          <div class="media-item"
+                               data-media-id="{{ album.id }}-{{ loop.index }}"
+                               data-group-index="{{ group_index }}"
+                               data-subgroup-index="{{ loop.index0 }}"
+                               data-album-index="{{ loop.index0 }}"
+                               data-group-title="{{ group.title }}"
+                               data-subgroup-title="{{ subgroup.title }}"
+                               data-album-title="{{ album.title }}">
+                            <div class="media-wrapper">
+                              {% if media.thumbnail %}
+                                <div class="media-thumbnail">
+                                  <img src="{{ media.thumbnail }}" alt="{{ media.title }}" />
+                                  {% if media.mime_type %}
+                                    <div class="media-type-badge">
+                                      {% if media.mime_type starts with 'video' %}
+                                        <i class="fas fa-play"></i>
+                                      {% elseif media.mime_type starts with 'audio' %}
+                                        <i class="fas fa-music"></i>
+                                      {% else %}
+                                        <i class="fas fa-image"></i>
+                                      {% endif %}
+                                    </div>
+                                  {% endif %}
+                                </div>
+                              {% endif %}
+
+                              {% if media.title %}
+                                <div class="media-info">
+                                  <h5 class="media-title">{{ media.title }}</h5>
+                                </div>
+                              {% endif %}
+
+                              {% if media.url %}
+                                <div class="media-actions">
+                                  <a href="{{ media.url }}" target="_blank" class="btn btn-sm btn-link">
+                                    <i class="fas fa-external-link-alt"></i>
+                                    {{ 'View'|t }}
+                                  </a>
+                                </div>
+                              {% endif %}
+                            </div>
+                          </div>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  {# Footer #}
+  <div class="light-table-footer">
+    <div class="footer-left">
+      {% if config.draggable %}
+        <div class="drag-hint">
+          <i class="fas fa-arrows-alt"></i> {{ 'Drag to reorder'|t }}
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="footer-right">
+      <div class="selection-info">
+        {{ selected_ids|length }} {{ 'selected'|t }}
+      </div>
+      <button type="button" class="btn btn-sm btn-primary save-order">
+        {{ 'Save order'|t }}
+      </button>
+    </div>
+  </div>
+
+  {# Hidden fields #}
+  <input type="hidden" class="selected-ids" value="{{ selected_ids|join(',') }}">
+</div>

@@ -12,14 +12,42 @@ function media_album_av_common_theme($existing, $type, $theme, $path) {
   return [
     'media_light_table' => [
       'variables' => [
-      'theme' => [],
-      'view' => [],
-      'options' => [],
-      'groups' => [],
+        'theme' => [],
+        'view' => [],
+        'options' => [],
+        'groups' => [],
+        'config' => [],
+        'grouping_criteria' => [],
       ],
       'path' => $path . '/templates',
       'template' => 'media-light-table',
     ],
+    'media_light_table_content' => [
+      'variables' => [
+        'groups' => [],
+        'view' => NULL,
+      ],
+      'path' => $path . '/templates',
+      'template' => 'media-light-table-content',
+    ],
+    'views_view_media_album_light_table' => [
+      'variables' => [
+      'theme' => [],
+      'view' => [],
+      'groups' => [],
+      'options' => [],
+      'attributes' => [],
+      ],
+      'path' => $path . '/templates',
+      'template' => 'views-view-media-album-light-table',
+    ],
   ];
 }
 
+/**
+ * Implements hook_views_plugins_style_alter().
+ */
+function media_album_av_common_views_plugins_style_alter(&$plugins) {
+  // The media_album_light_table style will be dynamically hidden/shown
+  // based on whether the view has media reference fields.
+}

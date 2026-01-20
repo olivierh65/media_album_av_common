@@ -1,0 +1,37 @@
+{#
+/**
+ * @file
+ * Template for grouped media content (used in AJAX updates).
+ *
+ * This template renders only the grouped media items without headers or controls.
+ *
+ * Available variables:
+ * - groups: Hierarchical array of groups containing albums and media
+ * - view: The View object
+ *
+ * @ingroup themeable
+ */
+#}
+
+<div class="light-table-content">
+  {% for group in groups %}
+    {% if group.title %}
+      <div class="media-group">
+        <div class="group-header">{{ group.title }}</div>
+        <div class="group-content">
+          {% for item in group.rows %}
+            <div class="media-item" data-media-id="{{ item.nid }}" data-mime-type="{{ item.mime_type }}">
+              {{ item.view }}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    {% else %}
+      {% for item in group.rows %}
+        <div class="media-item" data-media-id="{{ item.nid }}" data-mime-type="{{ item.mime_type }}">
+          {{ item.view }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+</div>

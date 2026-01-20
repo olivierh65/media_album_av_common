@@ -15,7 +15,7 @@
 
         // Get all media grids within this content area
         var grids = Array.from(content.querySelectorAll('.media-grid'));
-        
+
         if (grids.length === 0) {
           return;
         }
@@ -27,12 +27,16 @@
             return el.classList.contains('media-item');
           },
           accepts: function (el, target, source, sibling) {
-            // Accept drops in any media-grid
-            return target.classList.contains('media-grid');
+            // Accept drops in any media-grid (including empty ones)
+            return target && target.classList && target.classList.contains('media-grid');
           },
           revertOnSpill: true,
           removeOnSpill: false,
-          direction: 'horizontal'
+          direction: 'horizontal',
+          mirrorContainer: document.body,
+          copySortSource: false,
+          copy: false,
+          delay: 200
         });
 
         // Listen to drag events
@@ -74,17 +78,19 @@
   function getAllMediaOrder(content) {
     var mediaData = [];
     var groups = content.querySelectorAll('.media-group');
-    
+
     groups.forEach(function (group, groupIndex) {
       var groupTitle = group.querySelector('.group-title');
       var groupName = groupTitle ? groupTitle.textContent : 'Group ' + (groupIndex + 1);
-      
-      var albums = group.querySelectorAll('.album-container');
+
+      // Note: .album-container and .media-grid are now on the same element
+      var albums = group.querySelectorAll('.media-grid.album-container');
       albums.forEach(function (album, albumIndex) {
         var albumTitle = album.querySelector('.album-title');
         var albumName = albumTitle ? albumTitle.textContent : 'Album ' + (albumIndex + 1);
-        
-        var mediaItems = album.querySelector('.media-grid').querySelectorAll('.media-item');
+
+        // album is both .media-grid and .album-container
+        var mediaItems = album.querySelectorAll('.media-item');
         mediaItems.forEach(function (item) {
           var mediaId = item.getAttribute('data-media-id');
           if (mediaId) {
@@ -99,7 +105,7 @@
         });
       });
     });
-    
+
     return mediaData;
   }
 
@@ -110,16 +116,30 @@
     // Find the album container that contains this grid
     var albumContainer = targetGrid.closest('.album-container');
     if (!albumContainer) {
+      console.warn('Could not find album container for target grid');
       return;
     }
 
     // Update the data attribute with new group and album info
     var groupContainer = albumContainer.closest('.media-group');
-    var groupIndex = Array.from(groupContainer.parentElement.children).indexOf(groupContainer);
-    var albumIndex = Array.from(albumContainer.parentElement.children).indexOf(albumContainer);
-    
+    if (!groupContainer) {
+      console.warn('Could not find media group container');
+      return;
+    }
+
+    var groupIndex = Array.from(groupContainer.parentElement.children).filter(function(child) {
+      return child.classList.contains('media-group');
+    }).indexOf(groupContainer);
+
+    var siblingAlbums = Array.from(albumContainer.parentElement.children).filter(function(child) {
+      return child.classList.contains('album-container');
+    });
+    var albumIndex = siblingAlbums.indexOf(albumContainer);
+
     element.setAttribute('data-group-index', groupIndex);
     element.setAttribute('data-album-index', albumIndex);
+
+    console.log('Updated media group info:', {groupIndex: groupIndex, albumIndex: albumIndex});
   }
 
   /**
@@ -130,7 +150,7 @@
     // Find the parent wrapper (the main div containing everything)
     var wrapper = content.parentElement;
     var hiddenInput = wrapper ? wrapper.querySelector('.selected-ids') : null;
-    
+
     if (hiddenInput) {
       var ids = mediaOrder.map(function (item) { return item.id; });
       hiddenInput.value = ids.join(',');
@@ -155,10 +175,10 @@
    * Enable the save button.
    */
   function enableSaveButton(context) {
-    var content = context.classList && context.classList.contains('light-table-content') 
-      ? context 
+    var content = context.classList && context.classList.contains('light-table-content')
+      ? context
       : context.closest('.light-table-content');
-    
+
     if (!content) {
       return;
     }
@@ -270,7 +290,7 @@
   function collectMediaSaveData(wrapper) {
     var groupingCriteriaStr = wrapper.getAttribute('data-grouping-criteria');
     var groupingCriteria = [];
-    
+
     try {
       groupingCriteria = JSON.parse(groupingCriteriaStr || '[]');
     } catch (e) {
@@ -327,13 +347,13 @@
     // Get CSRF token from Drupal
     // Try different methods to get the CSRF token
     var csrfToken = null;
-    
+
     // Method 1: Check meta tag
     var tokenMeta = document.querySelector('meta[name="csrf-token"]');
     if (tokenMeta) {
       csrfToken = tokenMeta.getAttribute('content');
     }
-    
+
     // Method 2: Check hidden input (common in forms)
     if (!csrfToken) {
       var tokenInput = document.querySelector('input[name="csrf_token"]');
@@ -341,7 +361,7 @@
         csrfToken = tokenInput.value;
       }
     }
-    
+
     // Method 3: Try Drupal settings
     if (!csrfToken && typeof Drupal !== 'undefined' && Drupal.settings) {
       csrfToken = Drupal.settings.csrfToken;

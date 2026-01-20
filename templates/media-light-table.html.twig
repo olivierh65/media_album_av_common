@@ -49,6 +49,14 @@
 
     <div class="header-right">
       <div class="actions">
+        {# Filter and grouping controls #}
+        <div class="controls-group">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="collapse" data-target="#media-controls">
+            <i class="fas fa-sliders-h"></i>
+            {{ 'Filters & Grouping'|t }}
+          </button>
+        </div>
+
         <button type="button" class="btn btn-sm btn-outline-secondary select-all">
           {{ 'Select all'|t }}
         </button>
@@ -56,6 +64,74 @@
           {{ 'Deselect all'|t }}
         </button>
       </div>
+    </div>
+  </div>
+
+  {# Filters and Grouping Controls #}
+  <div id="media-controls" class="collapse light-table-controls">
+    <div class="controls-container">
+
+      {# Media Type Filter #}
+      <div class="control-section">
+        <h4>{{ 'Filter by Media Type'|t }}</h4>
+        <div class="media-type-filters">
+          <label><input type="checkbox" class="media-filter" value="video/mp4" /> {{ 'Video'|t }}</label>
+          <label><input type="checkbox" class="media-filter" value="audio/mpeg" /> {{ 'Audio'|t }}</label>
+          <label><input type="checkbox" class="media-filter" value="image/jpeg" /> {{ 'Image'|t }}</label>
+          <label><input type="checkbox" class="media-filter" value="image/png" /> {{ 'PNG'|t }}</label>
+        </div>
+      </div>
+
+      {# Grouping Selection #}
+      <div class="control-section">
+        <h4>{{ 'Group By'|t }}</h4>
+        <div class="grouping-controls">
+          <div class="grouping-levels">
+            <div class="grouping-level" data-level="0">
+              <label>{{ 'Level 1'|t }}</label>
+              <select class="grouping-field" data-level="0">
+                <option value="">{{ 'None'|t }}</option>
+                <option value="field_category">{{ 'Category'|t }}</option>
+                <option value="field_author">{{ 'Author'|t }}</option>
+                <option value="field_date">{{ 'Date'|t }}</option>
+                <option value="created">{{ 'Created'|t }}</option>
+              </select>
+            </div>
+
+            <div class="grouping-level" data-level="1" style="display: none;">
+              <label>{{ 'Level 2'|t }}</label>
+              <select class="grouping-field" data-level="1">
+                <option value="">{{ 'None'|t }}</option>
+                <option value="field_category">{{ 'Category'|t }}</option>
+                <option value="field_author">{{ 'Author'|t }}</option>
+                <option value="field_date">{{ 'Date'|t }}</option>
+                <option value="created">{{ 'Created'|t }}</option>
+              </select>
+            </div>
+
+            <div class="grouping-level" data-level="2" style="display: none;">
+              <label>{{ 'Level 3'|t }}</label>
+              <select class="grouping-field" data-level="2">
+                <option value="">{{ 'None'|t }}</option>
+                <option value="field_category">{{ 'Category'|t }}</option>
+                <option value="field_author">{{ 'Author'|t }}</option>
+                <option value="field_date">{{ 'Date'|t }}</option>
+                <option value="created">{{ 'Created'|t }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grouping-actions">
+            <button type="button" class="btn btn-sm btn-primary apply-grouping">
+              {{ 'Apply Grouping'|t }}
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary reset-grouping">
+              {{ 'Reset'|t }}
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -95,14 +171,16 @@
               {% endif %}
 
               {# Media grid for this album #}
+              <!-- DEBUG config: {{ config|json_encode }} -->
               <div class="media-grid" style="
                 display: grid;
-                grid-template-columns: repeat({{ config.columns }}, 1fr);
-                gap: {{ config.gap }};
+                grid-template-columns: repeat({{ config.columns ?? 6 }}, 1fr);
+                gap: {{ config.gap ?? '10px' }};
               ">
                 {% for media in album.medias %}
                   <div class="media-item"
                        data-media-id="{{ album.id }}-{{ loop.index }}"
+                       data-mime-type="{{ media.mime_type }}"
                        data-group-index="{{ group_index }}"
                        data-album-index="{{ loop.index0 }}"
                        data-group-title="{{ group.title }}"
@@ -169,6 +247,7 @@
                         {% for media in album.medias %}
                           <div class="media-item"
                                data-media-id="{{ album.id }}-{{ loop.index }}"
+                               data-mime-type="{{ media.mime_type }}"
                                data-group-index="{{ group_index }}"
                                data-subgroup-index="{{ loop.index0 }}"
                                data-album-index="{{ loop.index0 }}"

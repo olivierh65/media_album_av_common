@@ -1,0 +1,141 @@
+{#
+/**
+ * @file
+ * Template for Media Album Light Table.
+ *
+ * Available variables:
+ * - view: The view object.
+ * - groups: Hierarchical array of grouped media with structure:
+ *   - groups[*].title: Group title
+ *   - groups[*].groupid: Group identifier
+ *   - groups[*].level: Nesting level
+ *   - groups[*].subgroups[*]: Nested subgroups with same structure
+ *     - subgroups[*].medias[*]: Array of media items
+ *       - thumbnail: {thumbnail_url, thumbnail_alt, thumbnail_title, thumbnail_width, thumbnail_height}
+ *       - media: {id, bundle, label, file_path, file_uri, url, width, height, mime_type, size_bytes, fields, terms}
+ * - options: Style plugin options including columns, gap, etc.
+ */
+#}
+
+{# Macro to render album grids (reusable for all levels) #}
+{% macro render_albums(albums, options) %}
+  {% set columns = options.columns|default(4) %}
+  {% set gap = options.gap|default('20px') %}
+  {% set justify = options.justify|default('flex-start') %}
+  {% set align = options.align|default('stretch') %}
+
+  {# If no albums, create one empty grid #}
+  {% if albums|length == 0 %}
+    <div class="media-album-light-table__grid media-grid album-container js-draggable-flexgrid empty-state"
+         data-album-id="empty-album"
+         data-columns="{{ columns }}"
+         data-gap="{{ gap }}"
+         style="display: flex; flex-wrap: wrap; gap: {{ gap }}; justify-content: {{ justify }}; align-items: {{ align }}; min-height: 50px;">
+    </div>
+  {% else %}
+    {# Otherwise, create a grid per album #}
+    {% for album in albums %}
+      <div class="media-album-light-table__grid media-grid album-container js-draggable-flexgrid{% if not album.medias %} empty-state{% endif %}"
+           data-album-id="{{ album.id }}"
+           data-columns="{{ columns }}"
+           data-gap="{{ gap }}"
+           style="display: flex; flex-wrap: wrap; gap: {{ gap }}; justify-content: {{ justify }}; align-items: {{ align }}; min-height: 120px;">
+
+        {% if album.medias %}
+          {% for media_item in album.medias %}
+            <div class="media-album-light-table__item media-item js-draggable-item"
+                 data-entity-id="{{ media_item.media.id }}"
+                 data-id="{{ media_item.media.id }}"
+                 data-media-id="{{ media_item.media.id }}"
+                 style="flex: 0 0 calc(100% / {{ columns }} - {{ gap }});">
+
+              {# Thumbnail #}
+              <div class="media-album-light-table__thumbnail">
+                <img
+                  src="{{ media_item.thumbnail.thumbnail_url }}"
+                  alt="{{ media_item.thumbnail.thumbnail_alt }}"
+                  title="{{ media_item.thumbnail.thumbnail_title }}"
+                  width="{{ media_item.thumbnail.thumbnail_width }}"
+                  height="{{ media_item.thumbnail.thumbnail_height }}"
+                  class="media-album-light-table__image" />
+              </div>
+
+              {# Media Info #}
+              <div class="media-album-light-table__info">
+                <div class="media-album-light-table__label">{{ media_item.media.label }}</div>
+
+                <div class="media-album-light-table__details">
+                  <span class="media-album-light-table__id">ID: {{ media_item.media.id }}</span>
+                  <span class="media-album-light-table__type">{{ media_item.media.bundle }}</span>
+                  {% if media_item.media.mime_type|split('/')|first == 'image' %}
+                    <span class="media-album-light-table__size">{{ media_item.media.width }}x{{ media_item.media.height }}</span>
+                  {% endif %}
+                  <span class="media-album-light-table__mime">{{ media_item.media.mime_type }}</span>
+                </div>
+
+                <div class="media-album-light-table__actions">
+                  <a href="{{ media_item.media.url }}" target="_blank" class="media-album-light-table__link">
+                    {{ 'View'|t }}
+                  </a>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endmacro %}
+
+{# Extract variables from options for cleaner code #}
+{% set columns = options.columns|default(4) %}
+{% set gap = options.gap|default('20px') %}
+{% set justify = options.justify|default('flex-start') %}
+{% set align = options.align|default('stretch') %}
+
+<div class="media-album-light-table light-table-content">
+  {% if groups is empty %}
+    <div class="media-album-light-table__empty">
+      {{ 'No content available.'|t }}
+    </div>
+  {% else %}
+    {% for group in groups %}
+      <div class="media-album-light-table__group media-group" data-group-id="{{ group.groupid }}">
+        {% if group.title %}
+          <h2 class="media-album-light-table__group-title group-title">{{ group.title }}</h2>
+        {% endif %}
+
+        {# Render albums at this level #}
+        {{ _self.render_albums(group.albums|default([]), options) }}
+
+        {# Render subgroups #}
+        {% if group.subgroups %}
+          {% for subgroup in group.subgroups %}
+            <div class="media-album-light-table__subgroup" data-subgroup-id="{{ subgroup.groupid }}">
+              {% if subgroup.title %}
+                <h3 class="media-album-light-table__subgroup-title">{{ subgroup.title }}</h3>
+              {% endif %}
+
+              {# Render albums at subgroup level #}
+              {{ _self.render_albums(subgroup.albums|default([]), options) }}
+
+              {# Render sub-subgroups #}
+              {% if subgroup.subgroups %}
+                {% for sub_subgroup in subgroup.subgroups %}
+                  <div class="media-album-light-table__level-3" data-group-id="{{ sub_subgroup.groupid }}">
+                    {% if sub_subgroup.title %}
+                      <h4 class="media-album-light-table__level-3-title">{{ sub_subgroup.title }}</h4>
+                    {% endif %}
+
+                    {# Render albums at level-3 #}
+                    {{ _self.render_albums(sub_subgroup.albums|default([]), options) }}
+                  </div>
+                {% endfor %}
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>

@@ -98,8 +98,23 @@ class MediaViewRendererService {
 
   /**
    * Render a light table with media using exact Views logic.
+   *
+   * @param string $view_id
+   *   The view ID.
+   * @param string $display_id
+   *   The display ID.
+   * @param array $arguments
+   *   View arguments.
+   * @param array $libraries
+   *   Additional libraries to attach.
+   * @param array $grouping_override
+   *   Optional grouping configuration to override the view's default.
+   *   Format: array of grouping levels with 'field' and optionally 'label'.
+   *
+   * @return array
+   *   Render array.
    */
-  public function renderEmbeddedMediaView($view_id, $display_id, array $arguments = [], array $libraries = []) {
+  public function renderEmbeddedMediaView($view_id, $display_id, array $arguments = [], array $libraries = [], array $grouping_override = []) {
     $build = [];
 
     // Check if VBO is installed and enabled.
@@ -141,15 +156,32 @@ class MediaViewRendererService {
       // Get the display handler to access grouping configuration.
       $display_handler = $view->getDisplay();
       $style_plugin = $display_handler->getPlugin('style');
+
+      // Start with the view's default grouping configuration.
       if ($style_plugin) {
         $style_options = $style_plugin->options;
         $grouping_config = $style_options['grouping'] ?? [];
+        // Ensure it's an array and not a string.
+        if (is_string($grouping_config)) {
+          $grouping_config = [];
+        }
       }
       else {
         $grouping_config = [];
       }
+
+      // Override with provided grouping if not empty.
+      if (!empty($grouping_override)) {
+        $grouping_config = $this->normalizeGroupingConfig($grouping_override);
+      }
+
+      // Ensure grouping_config is always an array.
+      if (!is_array($grouping_config)) {
+        $grouping_config = [];
+      }
+
       // Use renderGrouping to get properly grouped results (Drupal standard method).
-      $grouped_rows = $style_plugin->renderGrouping($view->result, $grouping_config, TRUE);
+      $grouped_rows = $style_plugin ? $style_plugin->renderGrouping($view->result, $grouping_config, TRUE) : [];
 
       $lg_settings = [];
       // Prepare and enrich the grouped data with media entities and thumbnails.
@@ -196,9 +228,9 @@ class MediaViewRendererService {
       $build['#theme'] = 'media_light_table';
       // Configuration par défaut - passez-la comme variable séparée.
       $build['#config'] = [
-        'columns' => 6,
-        'gap' => '10px',
-        'thumbnail_style' => 'thumbnail',
+        'columns' => $this->getSetting('columns') ?? 4,
+        'gap' => $this->getSetting('gap') ?? '6px',
+        'thumbnail_style' => $this->getSetting('thumbnail_style') ?? 'thumbnail',
         'show_metadata' => TRUE,
         'draggable' => TRUE,
         'selectable' => TRUE,
@@ -239,8 +271,46 @@ class MediaViewRendererService {
   /**
    * Méthode originale pour compatibilité.
    */
-  public function renderMediaView($view_id, $display_id, array $arguments = [], array $libraries = []) {
-    return $this->renderEmbeddedMediaView($view_id, $display_id, $arguments, $libraries);
+  public function renderMediaView($view_id, $display_id, array $arguments = [], array $libraries = [], array $grouping_override = []) {
+    return $this->renderEmbeddedMediaView($view_id, $display_id, $arguments, $libraries, $grouping_override);
+  }
+
+  /**
+   * Normalize and validate grouping configuration.
+   *
+   * @param array $grouping_config
+   *   The grouping configuration to normalize.
+   *
+   * @return array
+   *   Normalized grouping configuration suitable for Views renderGrouping().
+   */
+  protected function normalizeGroupingConfig(array $grouping_config) {
+    // Ensure it's an array.
+    if (!is_array($grouping_config)) {
+      return [];
+    }
+
+    // If empty, return empty array.
+    if (empty($grouping_config)) {
+      return [];
+    }
+
+    // Normalize the structure - Views expects specific format.
+    $normalized = [];
+    foreach ($grouping_config as $level => $config) {
+      // Skip invalid entries.
+      if (!is_array($config) || empty($config['field'])) {
+        continue;
+      }
+
+      // Build the proper Views grouping structure.
+      $normalized[$level] = [
+        'field' => $config['field'],
+        'label' => $config['label'] ?? '',
+      ];
+    }
+
+    return $normalized;
   }
 
   /**
@@ -396,16 +466,7 @@ class MediaViewRendererService {
       // Get the media entity from the row.
       $media = NULL;
 
-      // Vérifier d'abord si le média est dans _relationship_entities (nouvelle structure)
-      if (isset($row->_relationship_entities) && is_array($row->_relationship_entities)) {
-        // Chercher le champ de relationship (ex: field_media_album_av_media)
-        foreach ($row->_relationship_entities as $rel_field => $rel_entity) {
-          if ($rel_entity instanceof MediaInterface) {
-            $media = $rel_entity;
-            break;
-          }
-        }
-      }
+      $media = $this->getReferencedMediaEntity($row);
 
       // Fallback: ancienne structure où le média était dans _entity.
       if (!$media && isset($row->_entity) && $row->_entity instanceof MediaInterface) {

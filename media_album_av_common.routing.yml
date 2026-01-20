@@ -18,6 +18,16 @@ media_album_av_common.save_media_order:
     no_cache: TRUE
   methods: [POST]
 
+media_album_av_common.apply_grouping:
+  path: '/media-album-av-common/apply-grouping'
+  defaults:
+    _controller: '\Drupal\media_album_av_common\Controller\GroupingController::applyGrouping'
+  requirements:
+    _permission: 'access content'
+  options:
+    no_cache: TRUE
+  methods: [POST]
+
 .directory_delete_term:
   path: '/admin//directory/delete-term'
   defaults:

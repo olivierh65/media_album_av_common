@@ -23,8 +23,39 @@
         // Initialize dragula with all grids - allows dragging between groups
         var drake = dragula(grids, {
           moves: function (el, container, handle) {
-            // Only allow dragging from media-item elements
-            return el.classList.contains('media-item');
+            // MUST be a media-item to be draggable
+            if (!el.classList.contains('media-item')) {
+              return false;
+            }
+            
+            // MUST be clicking on the SVG drag handle ONLY
+            // First check: is the handle itself an SVG element or child of SVG?
+            if (handle.tagName === 'svg') {
+              // Direct click on SVG
+              var svg = handle.closest('.media-album-light-table__handle svg');
+              return svg ? true : false;
+            }
+            
+            if (handle.tagName === 'line' || handle.tagName === 'polyline') {
+              // Click on SVG child element
+              var svg = handle.closest('.media-album-light-table__handle svg');
+              return svg ? true : false;
+            }
+            
+            // Check if handle is inside the SVG
+            var svg = handle.closest('.media-album-light-table__handle svg');
+            if (svg) {
+              return true;
+            }
+            
+            // All other cases: NOT draggable
+            return false;
+          },
+          classes: {
+            drag: 'media-item--drag',
+            mirror: 'media-item--mirror',
+            over: 'media-grid--over',
+            transit: 'media-item--transit'
           },
           accepts: function (el, target, source, sibling) {
             // Accept drops in any media-grid (including empty ones)
@@ -77,19 +108,19 @@
    */
   function getAllMediaOrder(content) {
     var mediaData = [];
-    var groups = content.querySelectorAll('.media-group');
+    var groups = content.querySelectorAll('.media-album-light-table__group-container');
 
     groups.forEach(function (group, groupIndex) {
-      var groupTitle = group.querySelector('.group-title');
+      var groupTitle = group.querySelector('.media-album-light-table__group-title');
       var groupName = groupTitle ? groupTitle.textContent : 'Group ' + (groupIndex + 1);
 
-      // Note: .album-container and .media-grid are now on the same element
-      var albums = group.querySelectorAll('.media-grid.album-container');
+      // Note: .media-album-light-table__grid is the album container and media-grid
+      var albums = group.querySelectorAll('.media-album-light-table__grid');
       albums.forEach(function (album, albumIndex) {
         var albumTitle = album.querySelector('.album-title');
         var albumName = albumTitle ? albumTitle.textContent : 'Album ' + (albumIndex + 1);
 
-        // album is both .media-grid and .album-container
+        // album contains media items
         var mediaItems = album.querySelectorAll('.media-item');
         mediaItems.forEach(function (item) {
           var mediaId = item.getAttribute('data-media-id');
@@ -113,26 +144,26 @@
    * Update group and album information for a moved media item.
    */
   function updateMediaGroupInfo(element, targetGrid) {
-    // Find the album container that contains this grid
-    var albumContainer = targetGrid.closest('.album-container');
+    // Find the album container (media-grid) that contains this grid
+    var albumContainer = targetGrid.closest('.media-album-light-table__grid');
     if (!albumContainer) {
       console.warn('Could not find album container for target grid');
       return;
     }
 
     // Update the data attribute with new group and album info
-    var groupContainer = albumContainer.closest('.media-group');
+    var groupContainer = albumContainer.closest('.media-album-light-table__group-container');
     if (!groupContainer) {
       console.warn('Could not find media group container');
       return;
     }
 
     var groupIndex = Array.from(groupContainer.parentElement.children).filter(function(child) {
-      return child.classList.contains('media-group');
+      return child.classList.contains('media-album-light-table__group-container');
     }).indexOf(groupContainer);
 
     var siblingAlbums = Array.from(albumContainer.parentElement.children).filter(function(child) {
-      return child.classList.contains('album-container');
+      return child.classList.contains('media-album-light-table__grid');
     });
     var albumIndex = siblingAlbums.indexOf(albumContainer);
 

@@ -166,7 +166,9 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
   public function buildOptionsForm(&$form, FormStateInterface $form_state) {
     parent::buildOptionsForm($form, $form_state);
 
-    if (($this->view->id() == 'media_drop_manage') && ($this->view->current_display == 'page_1')) {
+    // Check if this is a media management view that uses field grouping.
+    if ((($this->view->id() == 'media_drop_manage') && ($this->view->current_display == 'page_1')) ||
+        ($this->view->id() == 'media_album_light_gallery' && in_array($this->view->current_display, ['page_1', 'page', 'default']))) {
       $manage = TRUE;
     }
     else {
@@ -251,141 +253,142 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
 
     // Récupérer tous les champs disponibles.
     $fields = $this->displayHandler->getHandlers('field');
-    $field_options = [];
+    $field_options = ['' => $this->t('- None -')];
     foreach ($fields as $field_name => $field) {
       $field_options[$field_name] = $field->adminLabel();
     }
 
-    // Section pour la configuration des groupes.
-    $form['field_groups'] = [
+    // Section pour la configuration des groupes avec sélection spécifique des zones.
+    $form['field_mapping'] = [
       '#type' => 'details',
-      '#title' => $this->t('Field Groups Configuration'),
+      '#title' => $this->t('Field/zone mapping'),
       '#open' => TRUE,
       '#weight' => 10,
       '#tree' => TRUE,
     ];
 
-    $form['field_groups']['description'] = [
-      '#markup' => '<p>' . $this->t('Organize your fields into groups. Each group will be rendered in a separate container with its own CSS class.') . '</p>',
+    $form['field_mapping']['description'] = [
+      '#markup' => '<p>' . $this->t('Select which field to use for each media album light table zone.') . '</p>',
     ];
 
-    // Créer 10 groupes configurables.
-    $num_groups = 10;
-    for ($i = 1; $i <= $num_groups; $i++) {
-      $group_key = 'group_' . $i;
+    // Zone 1: Thumbnail (always active, uses thumbnail_url from media info)
+    $form['field_mapping']['thumbnail'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Thumbnail Zone'),
+      '#open' => !empty($this->options['field_mapping']['thumbnail']['enabled']),
+    ];
 
-      if ($manage) {
-        switch ($i) {
-          case 1:
-            $title = '1-' . $this->t('Thumbnail Field');
-            break;
-
-          case 2:
-            $title = '2-' . $this->t('VBO Actions Field');
-            break;
-
-          case 3:
-            $title = '3-' . $this->t('Name Field');
-            break;
-
-          case 4:
-            $title = '4-' . $this->t('Media Details Fields');
-            break;
-
-          case 5:
-            $title = '5-' . $this->t('Action Field');
-            break;
-
-          case 6:
-            $title = '6-' . $this->t('Image Preview Field');
-            break;
-
-          default:
-            $title = $this->t('Group @num', ['@num' => $i]);
-            break;
-        }
-      }
-      else {
-        $title = $this->t('Group @num', ['@num' => $i]);
-      }
-
-      $form['field_groups'][$group_key] = [
-        '#type' => 'details',
-        '#title' => $title,
-        '#open' => !empty($this->options['field_groups'][$group_key]['enabled']),
-      ];
-
-      $form['field_groups'][$group_key]['enabled'] = [
-        '#type' => 'checkbox',
-        '#title' => $this->t('Enable this group'),
-        '#default_value' => $this->options['field_groups'][$group_key]['enabled'] ?? FALSE,
-      ];
-
-      $form['field_groups'][$group_key]['label'] = [
-        '#type' => 'textfield',
-        '#title' => $this->t('Group label (optional)'),
-        '#default_value' => $this->options['field_groups'][$group_key]['label'] ?? '',
-        '#description' => $this->t('Leave empty for no label'),
-        '#states' => [
-          'visible' => [
-            ':input[name="style_options[field_groups][' . $group_key . '][enabled]"]' => ['checked' => TRUE],
-          ],
-        ],
-      ];
-
-      $form['field_groups'][$group_key]['css_class'] = [
-        '#type' => 'textfield',
-        '#title' => $this->t('CSS class'),
-        '#default_value' => $this->options['field_groups'][$group_key]['css_class'] ?? 'zone-' . $i,
-        '#description' => $this->t('CSS class for this group container'),
-        '#states' => [
-          'visible' => [
-            ':input[name="style_options[field_groups][' . $group_key . '][enabled]"]' => ['checked' => TRUE],
-          ],
-        ],
-      ];
-
-      $form['field_groups'][$group_key]['wrapper_element'] = [
-        '#type' => 'select',
-        '#title' => $this->t('Wrapper element'),
-        '#options' => [
-          'div' => 'div',
-          'section' => 'section',
-          'aside' => 'aside',
-          'header' => 'header',
-          'footer' => 'footer',
-          'nav' => 'nav',
-        ],
-        '#default_value' => $this->options['field_groups'][$group_key]['wrapper_element'] ?? 'div',
-        '#states' => [
-          'visible' => [
-            ':input[name="style_options[field_groups][' . $group_key . '][enabled]"]' => ['checked' => TRUE],
-          ],
-        ],
-      ];
-
-      if (!empty($field_options)) {
-        $form['field_groups'][$group_key]['fields'] = [
-          '#type' => 'checkboxes',
-          '#title' => $this->t('Fields in this group'),
-          '#options' => $field_options,
-          '#default_value' => $this->options['field_groups'][$group_key]['fields'] ?? [],
-          '#description' => $this->t('Select the fields to include in this group. Fields can only belong to one group.'),
-          '#states' => [
-            'visible' => [
-              ':input[name="style_options[field_groups][' . $group_key . '][enabled]"]' => ['checked' => TRUE],
-            ],
-          ],
-        ];
-      }
-    }
-
-    $form['show_ungrouped'] = [
+    $form['field_mapping']['thumbnail']['enabled'] = [
       '#type' => 'checkbox',
-      '#title' => $this->t('Show ungrouped fields'),
-      '#default_value' => $this->options['show_ungrouped'] ?? TRUE,
-      '#description' => $this->t('If checked, fields not assigned to any group will be displayed in an "ungrouped" container at the end.'),
-      '#weight' => 100,
+      '#title' => $this->t('Enable thumbnail zone'),
+      '#default_value' => $this->options['field_mapping']['thumbnail']['enabled'] ?? TRUE,
+      '#description' => $this->t('Display the media thumbnail image'),
+    ];
+
+    // Zone 2: VBO Actions.
+    $form['field_mapping']['vbo'] = [
+      '#type' => 'details',
+      '#title' => $this->t('VBO Actions Zone'),
+      '#open' => !empty($this->options['field_mapping']['vbo']['enabled']),
+    ];
+
+    $form['field_mapping']['vbo']['enabled'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Enable VBO actions zone'),
+      '#default_value' => $this->options['field_mapping']['vbo']['enabled'] ?? FALSE,
+    ];
+
+    $form['field_mapping']['vbo']['field'] = [
+      '#type' => 'select',
+      '#title' => $this->t('VBO field'),
+      '#options' => $field_options,
+      '#default_value' => $this->options['field_mapping']['vbo']['field'] ?? '',
+      '#description' => $this->t('Select the VBO actions field'),
+      '#states' => [
+        'visible' => [
+          ':input[name="style_options[field_mapping][vbo][enabled]"]' => ['checked' => TRUE],
+        ],
+      ],
+    ];
+
+    // Zone 3: Name.
+    $form['field_mapping']['name'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Name Zone'),
+      '#open' => !empty($this->options['field_mapping']['name']['enabled']),
+    ];
+
+    $form['field_mapping']['name']['enabled'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Enable name zone'),
+      '#default_value' => $this->options['field_mapping']['name']['enabled'] ?? TRUE,
+    ];
+
+    $form['field_mapping']['name']['field'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Name field (text field)'),
+      '#options' => $field_options,
+      '#default_value' => $this->options['field_mapping']['name']['field'] ?? '',
+      '#description' => $this->t('Select a text field for the media name'),
+      '#states' => [
+        'visible' => [
+          ':input[name="style_options[field_mapping][name][enabled]"]' => ['checked' => TRUE],
+        ],
+      ],
+    ];
+
+    // Zone 4: Media Details (uses media info: file_name, file_path, size_bytes, mime_type, width, height, bundle)
+    $form['field_mapping']['details'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Media Details Zone'),
+      '#open' => !empty($this->options['field_mapping']['details']['enabled']),
+    ];
+
+    $form['field_mapping']['details']['enabled'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Enable media details zone'),
+      '#default_value' => $this->options['field_mapping']['details']['enabled'] ?? TRUE,
+      '#description' => $this->t('Display media details popup (filename, size, MIME type, dimensions, media type)'),
+    ];
+
+    // Zone 5: Action.
+    $form['field_mapping']['action'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Action Zone'),
+      '#open' => !empty($this->options['field_mapping']['action']['enabled']),
+    ];
+
+    $form['field_mapping']['action']['enabled'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Enable action zone'),
+      '#default_value' => $this->options['field_mapping']['action']['enabled'] ?? TRUE,
+    ];
+
+    $form['field_mapping']['action']['field'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Action field'),
+      '#options' => $field_options,
+      '#default_value' => $this->options['field_mapping']['action']['field'] ?? '',
+      '#description' => $this->t('Select a field that points to media actions'),
+      '#states' => [
+        'visible' => [
+          ':input[name="style_options[field_mapping][action][enabled]"]' => ['checked' => TRUE],
+        ],
+      ],
+    ];
+
+    // Zone 6: Preview (uses media URL automatically)
+    $form['field_mapping']['preview'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Preview Zone'),
+      '#open' => !empty($this->options['field_mapping']['preview']['enabled']),
+    ];
+
+    $form['field_mapping']['preview']['enabled'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Enable preview zone'),
+      '#default_value' => $this->options['field_mapping']['preview']['enabled'] ?? TRUE,
+      '#description' => $this->t('Display a zoom button to preview the media'),
     ];
 
   }
@@ -396,34 +399,8 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
   public function validateOptionsForm(&$form, FormStateInterface $form_state) {
     parent::validateOptionsForm($form, $form_state);
 
-    // Vérifier qu'un champ n'est pas dans plusieurs groupes.
-    $field_groups = $form_state->getValue(['style_options', 'field_groups']);
-    $assigned_fields = [];
-    $duplicates = [];
-
-    if ($field_groups) {
-      foreach ($field_groups as $group_id => $group_config) {
-        if (!empty($group_config['enabled']) && !empty($group_config['fields'])) {
-          foreach ($group_config['fields'] as $field_id => $checked) {
-            if ($checked) {
-              if (isset($assigned_fields[$field_id])) {
-                $duplicates[$field_id] = $field_id;
-              }
-              $assigned_fields[$field_id] = $group_id;
-            }
-          }
-        }
-      }
-    }
-
-    if (!empty($duplicates)) {
-      $form_state->setError(
-        $form['field_groups'],
-        $this->t('The following fields are assigned to multiple groups: @fields. Each field can only belong to one group.',
-          ['@fields' => implode(', ', $duplicates)]
-        )
-      );
-    }
+    // Validation of field selections if needed
+    // Currently no specific validation required.
   }
 
   /**
@@ -484,11 +461,16 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
     // $build['#groups'] = $this->filterEmptyGroups($build['#groups']);.
     unset($this->view->row_index);
 
-    // Ajouter les librairies.
-    $build['#attached']['library'][] = 'media_drop/draggable_flexgrid';
-    $build['#attached']['library'][] = 'media_album_av_common/dragula';
-    $build['#attached']['library'][] = 'media_album_av_common/media-light-table';
+    // Add grouped fields for template.
+    $build['#grouped_fields'] = $this->getGroupedFields();
 
+    // Ajouter les librairies.
+    // Dragula must be loaded FIRST before draggable-flexgrid can use it.
+    $build['#attached']['library'][] = 'media_album_av_common/dragula';
+    $build['#attached']['library'][] = 'media_album_av_common/draggable-flexgrid';
+    $build['#attached']['library'][] = 'media_album_av_common/draggable-flexgrid-light-table-groups';
+    // $build['#attached']['library'][] = 'media_album_av_common/media-light-table-modal';
+    // $build['#attached']['library'][] = 'media_album_av_common/draggable-flexgrid-vbo';
     // Ajouter les settings pour JavaScript.
     $build['#attached']['drupalSettings']['draggableFlexGrid'] = [
       'view_id' => $this->view->id(),

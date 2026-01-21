@@ -1,0 +1,73 @@
+
+/* Grid container styles */
+.draggable-flexgrid__grid {
+  width: 100%;
+  border: 2px dashed #ddd;
+  border-radius: 4px;
+  padding: 12px;
+  background-color: #fafafa;
+  transition: all 0.2s ease;
+}
+
+.draggable-flexgrid__grid:hover {
+  border-color: #999;
+  background-color: #f0f0f0;
+}
+
+.draggable-flexgrid__grid.empty-state {
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 13px;
+}
+
+/* Group title styles - unified element with level-based styling */
+.draggable-flexgrid__group-title {
+  font-weight: 600;
+  padding-bottom: 8px;
+  display: block;
+}
+
+.draggable-flexgrid__group-title[data-level="0"] {
+  margin: 16px 0 12px 0;
+  font-size: 16px;
+  color: #333;
+  border-bottom: 2px solid #4a90e2;
+  margin-left: 0;
+}
+
+.draggable-flexgrid__group-title[data-level="1"] {
+  margin: 12px 0 8px 0;
+  font-size: 14px;
+  color: #555;
+  border-bottom: 1px solid #ccc;
+  margin-left: 12px;
+}
+
+.draggable-flexgrid__group-title[data-level="2"],
+.draggable-flexgrid__group-title[data-level="3"],
+.draggable-flexgrid__group-title[data-level="4"],
+.draggable-flexgrid__group-title[data-level="5"] {
+  margin: 8px 0 6px 0;
+  font-size: 13px;
+  color: #666;
+  margin-left: 24px;
+}
+
+.draggable-flexgrid__subgroup {
+  margin-top: 8px;
+}
+
+.draggable-flexgrid__empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}
+
+/* Hide empty groups with no title */
+.group-title-empty {
+  display: none;
+}

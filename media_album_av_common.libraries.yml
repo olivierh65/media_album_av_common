@@ -39,6 +39,42 @@ dragula:
   dependencies:
     - core/jquery
 
+# Generic draggable-flexgrid library for both media_drop and media_album_av_common
+draggable-flexgrid:
+  version: 1.x
+  js:
+    js/draggable-flexgrid.js: {}
+    js/draggable-flexgrid-manage-image.js: {}
+    js/draggable-flexgrid-fix_vbo_counter.js: {}
+    js/draggable-flexgrid-multi-select.js: {}
+  css:
+    theme:
+      css/draggable-flexgrid.css: {}
+      css/draggable-flexgrid-admin.css: {}
+      css/draggable-flexgrid-manage-image.css: {}
+  dependencies:
+    - core/drupal
+    - core/once
+    - /dragula
+
+draggable-flexgrid-light-table-groups:
+  version: 1.x
+  css:
+    theme:
+      css/draggable-flexgrid-light-table-groups.css: {}
+
+
+# VBO-specific functionality for draggable-flexgrid
+draggable-flexgrid-vbo:
+  version: 1.x
+  js:
+    js/media-light-table-vbo.js: {}
+  dependencies:
+    - core/drupal
+    - core/once
+    - /draggable-flexgrid
+
+
 media-light-table:
   version: 1.x
   css:
@@ -46,11 +82,34 @@ media-light-table:
       css/media-light-table.css: {}
       css/media-light-table-controls.css: {}
       css/media-album-light-table.css: {}
+      css/media-light-table-groups.css: {}
   js:
+    js/draggable-flexgrid.js: {}
     js/media-light-table.js: {}
     js/media-light-table-filters.js: {}
+    js/media-light-table-more-info.js: {}
+    js/media-light-table-vbo.js: {}
   dependencies:
     - core/drupal
     - core/once
-    - core/once
     - /dragula
+
+media-light-table-vbo:
+  version: 1.x
+  js:
+    js/media-light-table-vbo.js: {}
+  dependencies:
+    - core/drupal
+    - core/once
+    - /draggable-flexgrid-vbo
+
+media-light-table-modal:
+  version: 1.x
+  css:
+    theme:
+      css/media-light-table-modal.css: {}
+  js:
+    js/media-light-table-modal.js: {}
+  dependencies:
+    - core/drupal
+    - core/once

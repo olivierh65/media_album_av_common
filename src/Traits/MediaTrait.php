@@ -5,7 +5,6 @@ namespace Drupal\media_album_av_common\Traits;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\views\ResultRow;
 use Drupal\image\Entity\ImageStyle;
-use Drupal\Core\Url;
 use Drupal\media\MediaInterface;
 
 /**
@@ -261,15 +260,7 @@ trait MediaTrait {
 
         $info['file_uri'] = $file->getFileUri();
 
-        // URL publique.
-        // URL publique si le fichier est dans public://.
-        if (\Drupal::service('stream_wrapper_manager')->getScheme($info['file_uri']) === 'public') {
-          $info['url'] = $this->fileUrlGenerator->generateString($info['file_uri']);
-        }
-        // Fichier privé : URL via le route system/files.
-        elseif ($this->streamWrapperManager->getScheme($info['file_uri']) === 'private') {
-          $info['url'] = Url::fromRoute('system.files', ['file' => $file->getFilename()], ['absolute' => TRUE])->toString();
-        }
+        $info['url'] = $this->fileUrlGenerator->generateAbsoluteString($info['file_uri']);
 
         // Taille de l'image si applicable.
         if (file_exists($real_path)) {

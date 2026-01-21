@@ -1,0 +1,349 @@
+/**
+ * Draggable Flexgrid Core Styles
+ * Shared between media_drop and media_album_av_common
+ * Provides base styling for drag-and-drop flexgrid layouts
+ */
+
+/* === ITEM === */
+
+.draggable-flexgrid {
+  /* KEEP or ADD: */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  /* Permettre le scroll de la page entière */
+  overflow: visible;
+}
+
+.draggable-flexgrid__item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "content menu"
+    "content menu"
+    "content menu";
+  position: relative;
+  cursor: default;
+  touch-action: auto;
+  user-select: none;
+  border: #0071b8 1px solid;
+  border-radius: 4px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === CONTENU === */
+.draggable-flexgrid__content {
+  grid-area: content;
+  align-self: start;
+  min-width: 0;
+}
+
+/* === MENU HANDLE (drag + zoom) === */
+.draggable-flexgrid__menu-handle {
+  grid-area: menu;
+  align-self: start;
+  justify-self: end;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.2rem 0.2rem 0 0;
+}
+
+
+/* === BUTTONS === */
+.draggable-flexgrid__menu-button {
+  width: 1.8rem;
+  height: 1.8rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #333;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.95);
+  color: #333;
+  transition: all 0.2s ease;
+}
+
+.draggable-flexgrid__menu-button .zoom-icon {
+  transform: scale(1.05);
+}
+
+/* === DRAG HANDLE === */
+.media-drop-drag-icon,
+.media-light-table-drag-icon {
+  z-index: 10;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  touch-action: none; /* désactive le scroll pendant le drag */
+}
+
+.media-drop-drag-icon:active,
+.media-light-table-drag-icon:active {
+  cursor: grabbing;
+}
+
+
+/* === ITEM ACTIONS === */
+.item-actions {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  gap: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 10;
+  animation: button-appear 0.3s ease forwards;
+}
+
+.draggable-flexgrid__item:hover .item-actions {
+  opacity: 1;
+}
+
+/* Animation apparition boutons */
+@keyframes button-appear {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* === MEDIA NAME === */
+.media-drop-name-field,
+.media-light-table-name-field {
+  font-weight: 500;
+  font-size: clamp(0.7rem, 2.5vw, 1rem);
+  text-align: center;
+  user-select: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 90%;
+  margin: 0 auto;
+  flex-shrink: 0;
+}
+
+/* === ENTITY ID POPUP === */
+.media-drop-info-wrapper,
+.media-light-table-info-wrapper {
+  position: relative;
+  text-align: center;
+  margin-top: 0.2em;
+}
+
+.media-drop-info-popup,
+.media-light-table-info-popup {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #fff;
+  border: 1px solid #ccc;
+  padding: 8px 12px;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  z-index: 1000;
+  min-width: 150px;
+  cursor: pointer;
+}
+
+.media-drop-info-button,
+.media-light-table-info-button {
+  border-radius: 5px;
+  background-color: #c6c9d5;
+}
+
+.media-drop-info-popup .media-drop-popup-field,
+.media-light-table-info-popup .media-light-table-popup-field {
+  display: block;       /* chaque champ sur sa propre ligne */
+  width: 100%;          /* occupe toute la largeur du popup */
+  font-size: 0.8em;     /* taille de police légèrement plus petite */
+}
+
+/* === DRAGULA CLASSES === */
+.gu-mirror {
+  position: fixed !important;
+  margin: 0 !important;
+  z-index: 9999 !important;
+  opacity: 0.8;
+  pointer-events: none;
+  flex: 0 0 calc(100% / 6 - 0.5rem);
+}
+
+.gu-hide {
+  display: none !important;
+}
+
+.gu-transit {
+  opacity: 0.2;
+}
+
+.gu-unselectable {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+/* === RESPONSIVE MOBILE === */
+@media (max-width: 480px) {
+  .draggable-flexgrid__item {
+    flex: 0 0 min(200px, 60vw);
+    max-width: min(200px, 60vw);
+    min-width: calc(100% / 2 - 0.5rem);
+    grid-template-rows: auto 1fr auto auto;
+  }
+
+  .draggable-flexgrid__item .dropbutton-wrapper {
+    font-size: 0.75rem;
+  }
+
+  .draggable-flexgrid__item .dropbutton__item a,
+  .draggable-flexgrid__item .dropbutton__toggle {
+    padding: 0.25rem 0.4rem;
+    line-height: 1.1;
+    height: auto;
+  }
+
+  .media-drop-name-field,
+  .media-light-table-name-field {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+
+/* Checkbox overlay on image */
+.media-drop-vbo-field,
+.media-light-table-vbo-field {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  visibility: visible;
+  display: block !important;
+}
+
+.media-drop-vbo-field .form-item,
+.media-light-table-vbo-field .form-item {
+  visibility: visible;
+  display: block !important;
+  margin: 0;
+  padding: 0;
+}
+
+.media-drop-vbo-field input[type="checkbox"],
+.media-light-table-vbo-field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  visibility: visible;
+  display: block !important;
+  border-width: 2px;
+  border-color: black;
+  border-radius: 0.4rem;
+}
+
+.media-drop-vbo-field label,
+.media-light-table-vbo-field label {
+  display: none;
+}
+
+/* Container to center image */
+.media-drop-thumbnail,
+.media-light-table-thumbnail {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  flex-shrink: 0; /* Does not shrink */
+}
+
+/* Thumbnail images - centered with fixed height */
+.media-drop-thumbnail img,
+.media-light-table-thumbnail img {
+  width: 90%;
+  height: 150px; /* Fixed height for uniformity */
+  display: block;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+/* File name */
+.media-drop-name,
+.media-light-table-name {
+  margin-bottom: 0.5rem;
+  flex-shrink: 0;
+    width: 90%;
+  margin: 0 auto;
+}
+
+/* Media info list - area that can grow */
+.media-info-list {
+  margin: 0 auto;
+  padding: 0;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  width: 90%;
+  flex-grow: 1; /* Takes available space */
+  margin-bottom: 0.5rem;
+}
+
+.media-info-list dt {
+  float: left;
+  clear: left;
+  margin: 0;
+  padding: 0 0.3rem 0 0;
+  color: #666;
+  font-weight: bold;
+}
+
+.media-info-list dd {
+  margin: 0 0 0.2rem 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Edit button always at bottom */
+.media-drop-action-field,
+.media-light-table-action-field {
+  margin-top: auto; /* Push to bottom */
+  /* padding-top: 0.5rem; */
+  border-top: 1px solid #e0e0e0;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+/* If Edit button is directly in views-col */
+.views-col > .dropbutton-wrapper,
+.views-col > .form-actions {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+/* Individual grid cells - make them positioned parents */
+.views-col {
+  position: relative;
+  box-sizing: border-box;
+  margin-bottom: 0.8rem;
+  /* inside border-box for padding and border */
+  box-sizing: border-box;
+  /* Border with rounded corners */
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+  /* Uniform height and flexbox */
+  display: flex;
+  flex-direction: column;
+  min-height: 350px; /* Adjust as needed */
+}
+
+/* Hover effect on border */
+.views-col:hover {
+  border-color: #0073aa;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}

@@ -171,34 +171,34 @@
           {% if field_groups_config.group_4.enabled %}
             <div class="js-more-info-wrapper" data-once="entity-popup">
               <button type="button" class="js-entity-id-btn">Plus...</button>
-              <div class="js-entity-popup">
-                <span class="popup-image-filepath popup-field">
+              <div class="media-drop-info-popup">
+                <span class=media-drop-image-filepath popup-field">
                   filepath : {{ infos.file_path }}
                 </span>
-                <span class="popup-image-filesize popup-field">
+                <span class=media-drop-image-filesize popup-field">
                   filesize : {{ infos.size_bytes }}
                 </span>
-                <span class="popup-image-mime popup-field">
+                <span class=media-drop-image-mime popup-field">
                   Mime : {{ infos.mime_type }}
                 </span>
-                <span class="popup-image-size popup-field">
+                <span class=media-drop-image-size popup-field">
                   size : {{ infos.width }}x{{ infos.height }}
                 </span>
                 {% for field_id, checked in field_groups_config.group_6.fields %}
                   {% if checked and view.field[field_id] is defined %}
-                    <span class="popup-{{field_id}}  popup-field">
+                    <span class=media-drop-{{field_id}}  popup-field">
                       {{ view.style_plugin.getField(row_index, field_id) }}
                     </span>
                   {% endif %}
                 {% endfor %}
                 {% for name, value in infos.fields %}
-                  <span class="popup-{{name}}  popup-field">
+                  <span class=media-drop-{{name}}  popup-field">
                     {{ name }} : {{ value }}
                   </span>
                 {% endfor %}
                 {% for field_id, checked in field_groups_config.group_4.fields %}
                   {% if checked and view.field[field_id] is defined %}
-                    <span class="popup-{{field_id}}  popup-field">
+                    <span class=media-drop-{{field_id}}  popup-field">
                       {{ view.style_plugin.getField(row_index, field_id) }}
                     </span>
                   {% endif %}

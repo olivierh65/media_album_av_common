@@ -467,14 +467,42 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
     // Ajouter les librairies.
     // Dragula must be loaded FIRST before draggable-flexgrid can use it.
     $build['#attached']['library'][] = 'media_album_av_common/dragula';
+    $build['#attached']['library'][] = 'media_album_av_common/sortablejs';
     $build['#attached']['library'][] = 'media_album_av_common/draggable-flexgrid';
     $build['#attached']['library'][] = 'media_album_av_common/draggable-flexgrid-light-table-groups';
-    // $build['#attached']['library'][] = 'media_album_av_common/media-light-table-modal';
-    // $build['#attached']['library'][] = 'media_album_av_common/draggable-flexgrid-vbo';
+
+    // Load VBO libraries if the view uses Views Bulk Operations.
+    // This ensures proper styling of checkboxes and bulk actions dropbutton.
+    if (!empty($this->view->getHandlers('field')['views_bulk_operations_bulk_form'])) {
+      // Load the official dropbutton library (maps to correct theme CSS).
+      $build['#attached']['library'][] = 'core/drupal.dropbutton';
+      // Load VBO specific libraries and behaviors.
+      $build['#attached']['library'][] = 'views_bulk_operations/vbo';
+    }
+
     // Ajouter les settings pour JavaScript.
     $build['#attached']['drupalSettings']['draggableFlexGrid'] = [
       'view_id' => $this->view->id(),
       'display_id' => $this->view->current_display,
+    ];
+    $build['#attached']['drupalSettings']['dragtool'] = [
+      'dragtool' => 'sortable',
+      'options' => [
+        'revertOnSpill' => TRUE,
+        'removeOnSpill' => FALSE,
+        'direction' => "horizontal",
+        'delay' => 300,
+        'delayOnTouchOnly' => TRUE,
+        'mirrorContainer' => 'document.body',
+        'scroll' => FALSE,
+      ],
+      'dragitems' => '.js-draggable-item',
+      'handler' => '.draggable-flexgrid__handle',
+      'containers' => '.js-draggable-flexgrid',
+      'excludeSelector' => '.media-drop-info-wrapper',
+      'callbacks' => [
+        'saveorder' => 'media-drop/draggable-flexgrid/save-order',
+      ],
     ];
 
     return $build;
@@ -674,6 +702,8 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
         $medias[] = [
           'thumbnail' => $media_thumbnail,
           'media' => $media_info,
+        // To avoid to compute it again in Twig.
+          'row_index' => $index,
         ];
       }
     }

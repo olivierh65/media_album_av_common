@@ -38,11 +38,27 @@ dragula:
       css/dragula/dragula.css: {}
   dependencies:
     - core/jquery
+    - core/drupal
+    - core/once
+    - core/drupalSettings
+
+sortablejs:
+  version: 1.15.0
+  js:
+    js/Sortable/Sortable.js: {}
+  dependencies:
+    - core/jquery
+    - core/drupal
+    - core/once
+    - core/drupalSettings
+
 
 # Generic draggable-flexgrid library for both media_drop and media_album_av_common
 draggable-flexgrid:
   version: 1.x
   js:
+    js/draggable-flexgrid-dragula.js: {}
+    js/draggable-flexgrid-sortable.js: {}
     js/draggable-flexgrid.js: {}
     js/draggable-flexgrid-manage-image.js: {}
     js/draggable-flexgrid-fix_vbo_counter.js: {}
@@ -56,6 +72,7 @@ draggable-flexgrid:
     - core/drupal
     - core/once
     - /dragula
+    - /sortablejs
 
 draggable-flexgrid-light-table-groups:
   version: 1.x

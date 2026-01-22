@@ -1,0 +1,10 @@
+.media-light-table-vbo-header,
+.media-light-table-vbo-footer {
+  margin-bottom: 1rem;
+}
+
+.media-light-table-vbo-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}

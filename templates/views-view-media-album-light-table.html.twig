@@ -23,18 +23,7 @@
   {% set thumbnail = media_item.thumbnail %}
   {% set image_alt = infos.fields.name|default('') %}
 
-{# Find the row index in the view results #}
-  {% set row_index = null %}
-  {% for key, row in view.result %}
-    {# Search in relationship entities #}
-    {% if row._relationship_entities is defined %}
-      {% for relation_name, relationship_entity in row._relationship_entities %}
-        {% if relationship_entity is not null and relationship_entity.id() == infos.id %}
-          {% set row_index = key %}
-        {% endif %}
-      {% endfor %}
-    {% endif %}
-  {% endfor %}
+  {% set row_index = media_item.row_index %}
 
   <div class="draggable-flexgrid__item media-item js-draggable-item"
        data-entity-id="{{ infos.id }}"
@@ -226,24 +215,29 @@
 {% endmacro %}
 
 {# Main container #}
-<div class="draggable-flexgrid light-table-content draggable-flexgrid draggable-flexgrid--{{ columns }}cols js-draggable-flexgrid"
-     data-view-id="{{ view.id }}"
-     data-display-id="{{ view.current_display }}"
-     data-columns="{{ columns }}"
-     data-gap="{{ gap }}"
-     style="display: flex; flex-wrap: wrap; gap: {{ gap }}; justify-content: {{ justify }}; align-items: {{ align }};">
+{{dump()  }}
+<form {{ attributes }}>
+{# form for VBO to work properly #}
 
-<input type="hidden" name="media-light-table-vbo-order" class="media-light-table-vbo-order" value="">
+  <div class="draggable-flexgrid light-table-content draggable-flexgrid draggable-flexgrid--{{ columns }}cols js-draggable-flexgrid"
+      data-view-id="{{ view.id }}"
+      data-display-id="{{ view.current_display }}"
+      data-columns="{{ columns }}"
+      data-gap="{{ gap }}"
+      style="display: flex; flex-wrap: wrap; gap: {{ gap }}; justify-content: {{ justify }}; align-items: {{ align }};">
 
-  {% if groups is empty %}
-    <div class="draggable-flexgrid__empty">
-      {{ 'No content available.'|t }}
-    </div>
-  {% else %}
-    {% for group in groups %}
-      <div class="draggable-flexgrid__group-container media-light-table-group">
-        {{ _self.render_group_recursive(group, columns, gap, field_mapping_config, view) }}
+  <input type="hidden" name="media-light-table-vbo-order" class="media-light-table-vbo-order" value="">
+
+    {% if groups is empty %}
+      <div class="draggable-flexgrid__empty">
+        {{ 'No content available.'|t }}
       </div>
-    {% endfor %}
-  {% endif %}
-</div>
+    {% else %}
+      {% for group in groups %}
+        <div class="draggable-flexgrid__group-container media-light-table-group">
+          {{ _self.render_group_recursive(group, columns, gap, field_mapping_config, view) }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+</form>

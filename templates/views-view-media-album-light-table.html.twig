@@ -158,22 +158,36 @@
 {% endmacro %}
 
 {# Macro to render albums in grids #}
-{% macro render_albums(albums, columns, gap, field_mapping_config, view, display_group = true) %}
+{% macro render_albums(group, columns, gap, field_mapping_config, view, display_group = true) %}
 {# display the album container only if display_group is true or if there are medias in the album #}
+{% set albums = group.albums| default([]) %}
+{% set album_group = group.album_group|default('') %}
+{% set termid = group.termid|default('') %}
+
+
   {% if display_group == true or albums|length > 0 %}
     {% if albums|length == 0 %}
-      <div class="draggable-flexgrid__grid media-grid media-light-table-album-container js-draggable-flexgrid empty-state"
+    {# only taxonmy are elligible to be draggable #}
+    {% if group.field_target_type == "taxonomy_term" %}
+      <div class="media-grid media-light-table-album-container  {% if group.field_target_type == "taxonomy_term" %}album-group-{{ album_group }} js-draggable-flexgrid draggable-flexgrid__grid {% endif %} empty-state"
           data-album-id="empty-album"
+          data-album-grp ="album-group-{{ album_group }}"
+          data-termid = "{{ termid }}"
           data-columns="{{ columns }}"
           data-gap="{{ gap }}"
+          data-field-type="{{ group.field_type }}"
           style="display: flex; flex-wrap: wrap; gap: {{ gap }}; min-height: 50px;">
       </div>
+    {% endif %}
     {% else %}
       {% for album in albums %}
-        <div class="draggable-flexgrid__grid media-grid media-light-table-album-container js-draggable-flexgrid{% if not album.medias %} empty-state{% endif %}"
+        <div class="media-grid media-light-table-album-container  {% if group.field_target_type == "taxonomy_term" %}album-group-{{ album_group }} js-draggable-flexgrid draggable-flexgrid__grid {% endif %}{% if not album.medias %} empty-state{% endif %}"
             data-album-id="{{ album.id }}"
+            data-album-grp ="album-group-{{ album_group }}"
+            data-termid = "{{ termid }}"
             data-columns="{{ columns }}"
             data-gap="{{ gap }}"
+            data-field-type="{{ group.field_type }}"
             style="display: flex; flex-wrap: wrap; gap: {{ gap }}; min-height: 120px;">
           {% if album.medias %}
             {% for media_item in album.medias %}
@@ -202,7 +216,7 @@
     {% endif %}
 
        {# Render albums at this level #}
-       {{ _self.render_albums(group.albums|default([]), columns, gap, field_mapping_config, view, display_group) }}
+       {{ _self.render_albums(group, columns, gap, field_mapping_config, view, display_group) }}
 
   {# Render subgroups recursively #}
   {% if group.subgroups %}
@@ -215,11 +229,10 @@
 {% endmacro %}
 
 {# Main container #}
-{{dump()  }}
 <form {{ attributes }}>
 {# form for VBO to work properly #}
 
-  <div class="draggable-flexgrid light-table-content draggable-flexgrid draggable-flexgrid--{{ columns }}cols js-draggable-flexgrid"
+  <div class="draggable-flexgrid light-table-content draggable-flexgrid draggable-flexgrid--{{ columns }}cols"
       data-view-id="{{ view.id }}"
       data-display-id="{{ view.current_display }}"
       data-columns="{{ columns }}"

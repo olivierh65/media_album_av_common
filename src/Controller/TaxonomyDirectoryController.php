@@ -32,7 +32,7 @@ class TaxonomyDirectoryController extends ControllerBase {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('.directory_service')
+      $container->get('media_album_av_common.directory_service')
     );
   }
 

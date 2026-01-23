@@ -12,12 +12,13 @@ use Drupal\file\FileInterface;
 use Drupal\Core\File\FileUrlGeneratorInterface;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\media_album_av_common\Traits\MediaTrait;
 
 /**
  * Service to render media views with common formatting.
  */
 class MediaViewRendererService {
-
+  use MediaTrait;
   /**
    * The entity type manager.
    *

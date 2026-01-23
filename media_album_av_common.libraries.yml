@@ -68,6 +68,7 @@ draggable-flexgrid:
       css/draggable-flexgrid.css: {}
       css/draggable-flexgrid-admin.css: {}
       css/draggable-flexgrid-manage-image.css: {}
+      css/draggable-flexgrid-sortable.css: {}
   dependencies:
     - core/drupal
     - core/once

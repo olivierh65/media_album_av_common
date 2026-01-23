@@ -1,5 +1,5 @@
 .directory_create_term:
-  path: '/admin//directory/create-term'
+  path: '/admin/media_album_av_common/directory/create-term'
   defaults:
     _controller: '\Drupal\media_album_av_common\Controller\TaxonomyDirectoryController::createTerm'
   requirements:
@@ -29,7 +29,7 @@ media_album_av_common.apply_grouping:
   methods: [POST]
 
 .directory_delete_term:
-  path: '/admin//directory/delete-term'
+  path: '/admin/media_album_av_common/directory/delete-term'
   defaults:
     _controller: '\Drupal\media_album_av_common\Controller\TaxonomyDirectoryController::deleteTerm'
   requirements:
@@ -39,7 +39,7 @@ media_album_av_common.apply_grouping:
   methods: [POST]
 
 .directory_move_term:
-  path: '/admin//directory/move-term'
+  path: '/admin/media_album_av_common/directory/move-term'
   defaults:
     _controller: '\Drupal\media_album_av_common\Controller\TaxonomyDirectoryController::moveTerm'
   requirements:
@@ -49,7 +49,7 @@ media_album_av_common.apply_grouping:
   methods: [POST]
 
 .directory_update_term:
-  path: '/admin//directory/update-term'
+  path: '/admin/media_album_av_common/directory/update-term'
   defaults:
     _controller: '\Drupal\media_album_av_common\Controller\TaxonomyDirectoryController::updateTerm'
   requirements:
@@ -59,7 +59,7 @@ media_album_av_common.apply_grouping:
   methods: [POST]
 
 .directory_get_term:
-  path: '/admin//directory/get-term/{term_id}'
+  path: '/admin/media_album_av_common/directory/get-term/{term_id}'
   defaults:
     _controller: '\Drupal\media_album_av_common\Controller\TaxonomyDirectoryController::getTerm'
   requirements:

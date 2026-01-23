@@ -1,0 +1,8 @@
+
+.sortable-ghost {
+  opacity: 0.4;
+  border: dashed 2px #5609e6;
+}
+.sortable-chosen {
+  border: dashed 2px #b30d36;
+}

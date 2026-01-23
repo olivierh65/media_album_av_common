@@ -104,7 +104,7 @@
 
           // Send AJAX request to save the new parent and weights
           jQuery.ajax({
-            url: '/admin/taxonomy-service/directory/move-term',
+            url: '/admin/media_album_av_common/directory/move-term',
             type: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({
@@ -259,7 +259,7 @@
 
     // AJAX call to create the term
     jQuery.ajax({
-      url: '/admin/taxonomy-service/directory/create-term',
+      url: '/admin/media_album_av_common/directory/create-term',
       type: 'POST',
       contentType: 'application/json',
       data: JSON.stringify({
@@ -302,7 +302,7 @@
    */
   function deleteTerm(termId, $tree) {
     jQuery.ajax({
-      url: '/admin/taxonomy-service/directory/delete-term',
+      url: '/admin/media_album_av_common/directory/delete-term',
       type: 'POST',
       contentType: 'application/json',
       data: JSON.stringify({

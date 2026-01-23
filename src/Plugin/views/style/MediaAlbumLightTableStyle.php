@@ -9,9 +9,7 @@ use Drupal\views\Plugin\views\style\StylePluginBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\image\Entity\ImageStyle;
 use Drupal\Core\StreamWrapper\StreamWrapperManagerInterface;
-
 use Drupal\media_album_av_common\Traits\MediaTrait;
-use Drupal\media_album_av_common\Traits\CustomFieldsTrait;
 
 /**
  * A custom style plugin for rendering media album light tables.
@@ -30,7 +28,6 @@ use Drupal\media_album_av_common\Traits\CustomFieldsTrait;
  */
 class MediaAlbumLightTableStyle extends StylePluginBase {
   use MediaTrait;
-  use CustomFieldsTrait;
   /**
    * The file URL generator service.
    *
@@ -101,13 +98,13 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
     return new static(
-          $configuration,
-          $plugin_id,
-          $plugin_definition,
-          $container->get('file_url_generator'),
-          $container->get('entity_type.manager'),
-          $container->get('stream_wrapper_manager'),
-      );
+        $configuration,
+        $plugin_id,
+        $plugin_definition,
+        $container->get('file_url_generator'),
+        $container->get('entity_type.manager'),
+        $container->get('stream_wrapper_manager'),
+    );
   }
 
   /**
@@ -168,7 +165,7 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
 
     // Check if this is a media management view that uses field grouping.
     if ((($this->view->id() == 'media_drop_manage') && ($this->view->current_display == 'page_1')) ||
-        ($this->view->id() == 'media_album_light_gallery' && in_array($this->view->current_display, ['page_1', 'page', 'default']))) {
+      ($this->view->id() == 'media_album_light_gallery' && in_array($this->view->current_display, ['page_1', 'page', 'default']))) {
       $manage = TRUE;
     }
     else {
@@ -443,9 +440,6 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
       ],
     ];
 
-    // Media field should not have an mid == null.
-    // Hide empty results in views itself.
-    // Get grouped results from Views.
     $grouped_rows = $this->renderGrouping(
     $this->view->result,
     $this->options['grouping'],
@@ -454,8 +448,8 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
 
     // Recursively process the grouped structure.
     $build['#groups'] = $this->processGroupRecursive($grouped_rows,
-        $build,
-        );
+      $build,
+      );
 
     // Filter out empty groups recursively (groups without albums and without subgroups).
     // $build['#groups'] = $this->filterEmptyGroups($build['#groups']);.
@@ -485,23 +479,50 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
       'view_id' => $this->view->id(),
       'display_id' => $this->view->current_display,
     ];
+    foreach ($build['#groups'] as $group) {
+      // Passer l'album group pour chaque groupe.
+      $album_grp[] = $group['album_group'] ?? NULL;
+    }
     $build['#attached']['drupalSettings']['dragtool'] = [
       'dragtool' => 'sortable',
-      'options' => [
-        'revertOnSpill' => TRUE,
-        'removeOnSpill' => FALSE,
-        'direction' => "horizontal",
-        'delay' => 300,
-        'delayOnTouchOnly' => TRUE,
-        'mirrorContainer' => 'document.body',
-        'scroll' => FALSE,
+      'dragula' => [
+        'options' => [
+          'revertOnSpill' => TRUE,
+          'removeOnSpill' => FALSE,
+          'direction' => "horizontal",
+          'delay' => 300,
+          'delayOnTouchOnly' => TRUE,
+          'mirrorContainer' => 'document.body',
+          'scroll' => FALSE,
+          'albumsGroup' => $album_grp ?? [],
+        ],
+        'dragitems' => '.js-draggable-item',
+        'handler' => '.draggable-flexgrid__handle',
+        'containers' => '.js-draggable-flexgrid',
+        'excludeSelector' => '.media-drop-info-wrapper',
+        'callbacks' => [
+          'saveorder' => 'media-drop/draggable-flexgrid/save-order',
+        ],
       ],
-      'dragitems' => '.js-draggable-item',
-      'handler' => '.draggable-flexgrid__handle',
-      'containers' => '.js-draggable-flexgrid',
-      'excludeSelector' => '.media-drop-info-wrapper',
-      'callbacks' => [
-        'saveorder' => 'media-drop/draggable-flexgrid/save-order',
+      'sortable' => [
+        'options' => [
+          'animation' => 150,
+          'delayOnTouchOnly' => TRUE,
+          'swapThreshold' => 0.85,
+          'touchStartThreshold' => 4,
+          'handle' => '.draggable-flexgrid__handle',
+          'draggable' => '.js-draggable-item',
+          'ghostClass' => 'sortable-ghost',
+          'chosenClass' => 'sortable-chosen',
+          'scroll' => TRUE,
+          'forceAutoScrollFallback' => TRUE,
+          'bubbleScroll' => FALSE,
+        ],
+        'albumsGroup' => $album_grp ?? [],
+        'containers' => '.js-draggable-flexgrid',
+        'callbacks' => [
+          'saveorder' => 'media-drop/draggable-flexgrid/save-order',
+        ],
       ],
     ];
 
@@ -626,19 +647,99 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
    * @return array
    *   Normalized structure for Twig.
    */
-  private function processGroupRecursive(array $groups, array &$build, int $depth = 0, $idx = 0) {
+  private function processGroupRecursive(array $groups, array &$build, int $depth = 0, $idx = 0, $album_grp = NULL) {
 
     $processed = [];
 
     foreach ($groups as $group_key => $group_data) {
       $idx = rand();
+      if ($album_grp == NULL || $depth == 0) {
+        $album_grp = $idx;
+      }
+
+      // Get the field type for this grouping level.
+      $field_type = NULL;
+      $field_target_type = NULL;
+      if (!empty($this->options['grouping'][$depth])) {
+        $grouping_field = $this->options['grouping'][$depth]['field'] ?? NULL;
+        if ($grouping_field && !empty($this->view->result)) {
+          // Get the first row to determine the entity type.
+          $row = reset($this->view->result);
+          $entity = $row->_entity ?? NULL;
+
+          if ($entity) {
+            $entity_type_id = $entity->getEntityTypeId();
+
+            // Use entity_field.manager service to get field definitions.
+            $field_manager = \Drupal::service('entity_field.manager');
+            $field_definitions = $field_manager->getFieldDefinitions($entity_type_id, $entity->bundle());
+
+            // Check if the field exists on the main entity.
+            if (isset($field_definitions[$grouping_field])) {
+              $field_def = $field_definitions[$grouping_field];
+              $field_type = $field_def->getType();
+
+              // If it's an entity_reference, get the target type.
+              if ($field_type === 'entity_reference') {
+                $field_settings = $field_def->getSettings();
+                $field_target_type = $field_settings['target_type'] ?? NULL;
+              }
+            }
+            else {
+              // Try to check if it's a field on a related entity (via relationship).
+              $handlers = $this->view->getHandlers('field');
+              if (!empty($handlers[$grouping_field])) {
+                $handler = $handlers[$grouping_field];
+                // Check if this field is linked to a relationship.
+                if (!empty($handler['relationship']) && $handler['relationship'] !== 'none') {
+                  $rel_handlers = $this->view->getHandlers('relationship');
+                  if (!empty($rel_handlers[$handler['relationship']])) {
+                    $rel_handler = $rel_handlers[$handler['relationship']];
+                    // Get the relationship field name from the handler.
+                    $rel_field_name = $rel_handler['field'] ?? NULL;
+
+                    if ($rel_field_name) {
+                      // Get the relationship field definition to extract target type.
+                      $rel_field_definitions = $field_manager->getFieldDefinitions($entity_type_id, $entity->bundle());
+                      if (isset($rel_field_definitions[$rel_field_name])) {
+                        $rel_field_def = $rel_field_definitions[$rel_field_name];
+                        $rel_settings = $rel_field_def->getSettings();
+                        $target_type = $rel_settings['target_type'] ?? NULL;
+
+                        if ($target_type) {
+                          // Get field storage definition for the grouping field on the target entity.
+                          $target_field_storage_defs = $field_manager->getFieldStorageDefinitions($target_type);
+                          if (isset($target_field_storage_defs[$handler['field']])) {
+                            $target_field_storage_def = $target_field_storage_defs[$handler['field']];
+                            $field_type = $target_field_storage_def->getType();
+
+                            // If it's an entity_reference, get the target type.
+                            if ($field_type === 'entity_reference') {
+                              $target_field_settings = $target_field_storage_def->getSettings();
+                              $field_target_type = $target_field_settings['target_type'] ?? NULL;
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
       $group_item = [
         'title' => $group_data['group'] ?? '',
         'level' => $group_data['level'] ?? $depth,
         'albums' => [],
         'subgroups' => [],
         'termid' => $group_key,
+        'album_group' => $album_grp,
         'groupid' => 'album-group-' . $idx,
+        'field_type' => $field_type,
+        'field_target_type' => $field_target_type,
       ];
 
       // Check if this group contains rows (final results)
@@ -653,7 +754,8 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
             $group_data['rows'],
             $build,
             $depth + 1,
-            $idx
+            $idx,
+            $album_grp
           );
         }
         else {

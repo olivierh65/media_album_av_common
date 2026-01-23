@@ -1,4 +1,7 @@
 
+.media-light-table-media-item {
+    grid-template-areas: unset; /* Reset grid areas for light table items */
+}
 /* Grid container styles */
 .draggable-flexgrid__grid {
   width: 100%;
@@ -70,4 +73,47 @@
 /* Hide empty groups with no title */
 .group-title-empty {
   display: none;
+}
+
+.media-light-table-name-field {
+  font-weight: 500;
+  font-size: x-small;
+  text-align: center;
+  user-select: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 90%;
+  margin: 0 auto;
+  flex-shrink: 0;
+}
+
+.media-light-table-action-field {
+  margin-top: auto; /* Push to bottom */
+  /* padding-top: 0.5rem; */
+  border-top: 1px solid #e0e0e0;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 0.6rem;
+}
+
+.media-light-table-info-button {
+  border-radius: 5px;
+  background-color: #c6c9d5;
+  font-size: 0.6rem;
+}
+.media-light-table-action-field button:hover {
+  font-size: large;
+}
+
+.media-light-field-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #fff;
+  justify-content: center;
+}
+
+.media-light-field-content .dropbutton-multiple {
+  width: 90%;
 }

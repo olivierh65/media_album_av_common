@@ -109,8 +109,7 @@
 }
 
 /* === MEDIA NAME === */
-.media-drop-name-field,
-.media-light-table-name-field {
+.media-drop-name-field {
   font-weight: 500;
   font-size: clamp(0.7rem, 2.5vw, 1rem);
   text-align: center;
@@ -148,8 +147,7 @@
   cursor: pointer;
 }
 
-.media-drop-info-button,
-.media-light-table-info-button {
+.media-drop-info-button {
   border-radius: 5px;
   background-color: #c6c9d5;
 }
@@ -268,6 +266,10 @@
   border-radius: 4px;
 }
 
+.media-light-table-thumbnail img {
+  width: 100%;
+}
+
 /* File name */
 .media-drop-name,
 .media-light-table-name {
@@ -304,8 +306,7 @@
 }
 
 /* Edit button always at bottom */
-.media-drop-action-field,
-.media-light-table-action-field {
+.media-drop-action-field {
   margin-top: auto; /* Push to bottom */
   /* padding-top: 0.5rem; */
   border-top: 1px solid #e0e0e0;

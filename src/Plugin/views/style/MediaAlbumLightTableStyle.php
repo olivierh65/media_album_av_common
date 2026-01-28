@@ -108,38 +108,6 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
   }
 
   /**
-   * Find the field that references media entities in an entity.
-   *
-   * @param \Drupal\Core\Entity\EntityInterface $entity
-   *   The entity to inspect.
-   *
-   * @return string|null
-   *   The field name that references media, or NULL if not found.
-   */
-  protected function getMediaReferenceField($entity) {
-    if (!$entity) {
-      return NULL;
-    }
-
-    // Check all fields on the entity.
-    foreach ($entity->getFieldDefinitions() as $field_name => $field_definition) {
-      $field_type = $field_definition->getType();
-
-      // Check if it's an entity_reference field.
-      if ($field_type === 'entity_reference') {
-        $settings = $field_definition->getSettings();
-
-        // Check if it references media.
-        if (isset($settings['target_type']) && $settings['target_type'] === 'media') {
-          return $field_name;
-        }
-      }
-    }
-
-    return NULL;
-  }
-
-  /**
    * {@inheritdoc}
    */
   protected function defineOptions() {
@@ -426,9 +394,6 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
    * {@inheritdoc}
    */
   public function render() {
-    // Récupérer les rows rendues par le row plugin.
-    $rows = [];
-    $media_data = [];
 
     $build = [
       '#theme' => $this->themeFunctions(),
@@ -464,6 +429,8 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
     $build['#attached']['library'][] = 'media_album_av_common/sortablejs';
     $build['#attached']['library'][] = 'media_album_av_common/draggable-flexgrid';
     $build['#attached']['library'][] = 'media_album_av_common/draggable-flexgrid-light-table-groups';
+    // Load custom media item selection library.
+    $build['#attached']['library'][] = 'media_album_av_common/draggable-flexgrid-light-table-selection';
 
     // Load VBO libraries if the view uses Views Bulk Operations.
     // This ensures proper styling of checkboxes and bulk actions dropbutton.
@@ -660,11 +627,14 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
       // Get the field type for this grouping level.
       $field_type = NULL;
       $field_target_type = NULL;
+      $field_name = NULL;
+      $node_id = NULL;
       if (!empty($this->options['grouping'][$depth])) {
         $grouping_field = $this->options['grouping'][$depth]['field'] ?? NULL;
         if ($grouping_field && !empty($this->view->result)) {
           // Get the first row to determine the entity type.
           $row = reset($this->view->result);
+          $node_id = $row->nid ?? NULL;
           $entity = $row->_entity ?? NULL;
 
           if ($entity) {
@@ -678,6 +648,7 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
             if (isset($field_definitions[$grouping_field])) {
               $field_def = $field_definitions[$grouping_field];
               $field_type = $field_def->getType();
+              $field_name = $field_def->getName();
 
               // If it's an entity_reference, get the target type.
               if ($field_type === 'entity_reference') {
@@ -712,6 +683,7 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
                           if (isset($target_field_storage_defs[$handler['field']])) {
                             $target_field_storage_def = $target_field_storage_defs[$handler['field']];
                             $field_type = $target_field_storage_def->getType();
+                            $field_name = $target_field_storage_def->getName();
 
                             // If it's an entity_reference, get the target type.
                             if ($field_type === 'entity_reference') {
@@ -736,10 +708,12 @@ class MediaAlbumLightTableStyle extends StylePluginBase {
         'albums' => [],
         'subgroups' => [],
         'termid' => $group_key,
+        'nid' => $node_id,
         'album_group' => $album_grp,
         'groupid' => 'album-group-' . $idx,
         'field_type' => $field_type,
         'field_target_type' => $field_target_type,
+        'field_name' => $field_name,
       ];
 
       // Check if this group contains rows (final results)

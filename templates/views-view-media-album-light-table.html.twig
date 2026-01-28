@@ -18,7 +18,7 @@
 {% set field_mapping_config = options.field_mapping|default({}) %}
 
 {# Macro to render media items with field groups #}
-{% macro render_media_item(media_item, columns, gap, field_mapping_config, view) %}
+{% macro render_media_item(media_item, columns, gap, field_mapping_config, view, group) %}
   {% set infos = media_item.media %}
   {% set thumbnail = media_item.thumbnail %}
   {% set image_alt = infos.fields.name|default('') %}
@@ -37,12 +37,14 @@
       {# Thumbnail Field #}
       {% if field_mapping_config.thumbnail.enabled %}
         <div class="draggable-flexgrid__group-1 media-light-table-thumbnail-field">
-          <div class="draggable-flexgrid__thumbnail media-light-table-thumbnail">
+          <div class="draggable-flexgrid__thumbnail media-light-table-thumbnail"
+            data-orig-field-type="{{ group.field_type }}"
+            data-orig-field-name="{{ group.field_name }}">
           <span class="field-content media-light-field-content">
             <img
               src="{{ thumbnail.thumbnail_url }}"
               alt="{{ image_alt }}"
-              title="{{ infos.label }}"
+              title="{{ infos.label }} ({{ 'ID' }}: {{ infos.id }})"
               width="{{ thumbnail.thumbnail_width }}"
               height="{{ thumbnail.thumbnail_height }}"
               class="draggable-flexgrid__image media-light-table-image" />
@@ -163,6 +165,7 @@
 {% set albums = group.albums| default([]) %}
 {% set album_group = group.album_group|default('') %}
 {% set termid = group.termid|default('') %}
+{% set nid = group.nid|default(-1) %}
 
 
   {% if display_group == true or albums|length > 0 %}
@@ -173,10 +176,12 @@
           data-album-id="empty-album"
           data-album-grp ="album-group-{{ album_group }}"
           data-termid = "{{ termid }}"
+          data-nid = "{{ nid }}"
           data-columns="{{ columns }}"
           data-gap="{{ gap }}"
           data-field-type="{{ group.field_type }}"
-          style="display: flex; flex-wrap: wrap; gap: {{ gap }}; min-height: 50px;">
+          data-field-name="{{ group.field_name }}"
+          style="display: flex; flex-wrap: wrap; gap: {{ gap }}; ">
       </div>
     {% endif %}
     {% else %}
@@ -185,14 +190,15 @@
             data-album-id="{{ album.id }}"
             data-album-grp ="album-group-{{ album_group }}"
             data-termid = "{{ termid }}"
-            data-columns="{{ columns }}"
+            data-nid = "{{ nid }}"
             data-gap="{{ gap }}"
             data-field-type="{{ group.field_type }}"
-            style="display: flex; flex-wrap: wrap; gap: {{ gap }}; min-height: 120px;">
+            data-field-name="{{ group.field_name }}"
+            style="display: flex; flex-wrap: wrap; gap: {{ gap }};">
           {% if album.medias %}
             {% for media_item in album.medias %}
               {# Passer view et row_index à la macro #}
-              {{ _self.render_media_item(media_item, columns, gap, field_mapping_config, view) }}
+              {{ _self.render_media_item(media_item, columns, gap, field_mapping_config, view, group) }}
             {% endfor %}
           {% endif %}
         </div>
@@ -210,6 +216,7 @@
       <div class="draggable-flexgrid__group-title media-light-table-group-title" data-level="{{ group.level }}">
         {{ group.title }}
       </div>
+        {{ group.commandes|raw }}
       {% set display_group = true %}
     {% else %}
       {% set display_group = false %}
@@ -229,8 +236,6 @@
 {% endmacro %}
 
 {# Main container #}
-<form {{ attributes }}>
-{# form for VBO to work properly #}
 
   <div class="draggable-flexgrid light-table-content draggable-flexgrid draggable-flexgrid--{{ columns }}cols"
       data-view-id="{{ view.id }}"
@@ -248,9 +253,9 @@
     {% else %}
       {% for group in groups %}
         <div class="draggable-flexgrid__group-container media-light-table-group">
+        <div class="draggable-flexgrid__group-commandes media-light-table-group-commandes"> </div>
           {{ _self.render_group_recursive(group, columns, gap, field_mapping_config, view) }}
         </div>
       {% endfor %}
     {% endif %}
   </div>
-</form>

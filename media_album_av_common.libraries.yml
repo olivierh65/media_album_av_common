@@ -61,7 +61,7 @@ draggable-flexgrid:
     js/draggable-flexgrid-sortable.js: {}
     js/draggable-flexgrid.js: {}
     js/draggable-flexgrid-manage-image.js: {}
-    js/draggable-flexgrid-fix_vbo_counter.js: {}
+    # js/draggable-flexgrid-fix_vbo_counter.js: {}
     js/draggable-flexgrid-multi-select.js: {}
   css:
     theme:
@@ -131,3 +131,15 @@ media-light-table-modal:
   dependencies:
     - core/drupal
     - core/once
+
+draggable-flexgrid-light-table-selection:
+  version: 1.x
+  css:
+    theme:
+      css/draggable-flexgrid-light-table-selection.css: {}
+  js:
+    js/draggable-flexgrid-light-table-selection.js: {}
+  dependencies:
+    - core/drupal
+    - core/once
+    - /draggable-flexgrid

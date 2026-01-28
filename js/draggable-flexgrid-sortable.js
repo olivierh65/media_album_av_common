@@ -29,6 +29,9 @@
           ...(settings?.dragtool?.sortable?.options ?? {}),
           ...(groupClass ? { group: groupClass } : {}),
           dataIdAttr: "data-id",
+          // Multi-drag support for selected items
+          multiDrag: true,
+          selectedClass: "selected",
           // Called when dragging element changes position
           onChange: function (/**Event*/ evt) {
             // most likely why this event is used is to get the dragging element's current index
@@ -44,6 +47,10 @@
             console.log("Album order:", albumorder);
           },
         });
+        
+        // Store reference to Sortable instance on the grid element
+        grid._sortableInstance = sortable;
+        
         // Sauvegarder l'instance avec le nom du groupe
         sortableInstances.push({
           group: groupClass,

@@ -145,6 +145,38 @@ trait MediaTrait {
   }
 
   /**
+   * Find the field that references media entities in an entity.
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   The entity to inspect.
+   *
+   * @return string|null
+   *   The field name that references media, or NULL if not found.
+   */
+  protected function getMediaReferenceField($entity) {
+    if (!$entity) {
+      return NULL;
+    }
+
+    // Check all fields on the entity.
+    foreach ($entity->getFieldDefinitions() as $field_name => $field_definition) {
+      $field_type = $field_definition->getType();
+
+      // Check if it's an entity_reference field.
+      if ($field_type === 'entity_reference') {
+        $settings = $field_definition->getSettings();
+
+        // Check if it references media.
+        if (isset($settings['target_type']) && $settings['target_type'] === 'media') {
+          return $field_name;
+        }
+      }
+    }
+
+    return NULL;
+  }
+
+  /**
    * Get the media entity from relation.
    *
    * Automatically detects which field references media entities and retrieves it.

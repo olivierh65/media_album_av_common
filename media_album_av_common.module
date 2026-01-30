@@ -51,3 +51,4 @@ function media_album_av_common_views_plugins_style_alter(&$plugins) {
   // The media_album_light_table style will be dynamically hidden/shown
   // based on whether the view has media reference fields.
 }
+

@@ -28,3 +28,14 @@ services:
     arguments:
       - '@logger.factory'
 
+  media_album_av_common.grouping_fields:
+    class: Drupal\media_album_av_common\Service\AlbumGroupingFieldsService
+    arguments:
+      - '@config.factory'
+      - '@entity_field.manager'
+
+  media_album_av_common.album_grouping_config:
+    class: Drupal\media_album_av_common\Service\AlbumGroupingConfigService
+    arguments:
+      - '@entity_type.manager'
+      - '@media_album_av_common.grouping_fields'

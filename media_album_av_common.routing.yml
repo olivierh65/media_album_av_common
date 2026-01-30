@@ -68,3 +68,12 @@ media_album_av_common.apply_grouping:
   options:
     no_cache: TRUE
   methods: [GET]
+
+media_album_av_common.grouping_fields_settings:
+  path: '/admin/config/media/media-album-av/grouping-fields'
+  defaults:
+    _form: '\Drupal\media_album_av_common\Form\GroupingFieldsSettingsForm'
+    _title: 'Grouping Fields Configuration'
+  requirements:
+    _permission: 'administer site configuration'
+  parent: 'system.admin_config_media'

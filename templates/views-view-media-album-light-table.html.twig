@@ -210,29 +210,71 @@
 {% endmacro %}
 
 {# Macro to recursively render groups #}
-{% macro render_group_recursive(group, columns, gap, field_mapping_config, view) %}
+{% macro render_group_recursive(group, columns, gap, field_mapping_config, view, depth = 0) %}
     {# strip tags and trim to check if title is empty #}
     {% if group.title|striptags|trim|length != 0 %}
-      <div class="draggable-flexgrid__group-title media-light-table-group-title" data-level="{{ group.level }}">
-        {{ group.title }}
-      </div>
-        {{ group.commandes|raw }}
-      {% set display_group = true %}
+      {# Only render the group wrapper if it has content #}
+      {% if group.albums|length > 0 or (group.subgroups and group.subgroups|length > 0) %}
+        <div class="draggable-flexgrid__group-wrapper media-light-table-group-wrapper"
+             data-level="{{ group.level }}"
+             style="margin-left: {{ depth * 1.5 }}rem;">
+          <div class="draggable-flexgrid__group-header media-light-table-group-header">
+            <div class="draggable-flexgrid__group-title media-light-table-group-title" data-level="{{ group.level }}">
+              {{ group.title }}
+            </div>
+            <div class="draggable-flexgrid__group-commands media-light-table-group-commands">
+              {{ group.commandes|raw }}
+            </div>
+          </div>
+          <div class="draggable-flexgrid__group-content media-light-table-group-content">
+            {# Render albums at this level #}
+            {{ _self.render_albums(group, columns, gap, field_mapping_config, view, true) }}
+
+            {# Render subgroups recursively #}
+            {% if group.subgroups and group.subgroups|length > 0 %}
+              <div class="draggable-flexgrid__subgroups-container media-light-table-subgroups-container">
+                {% for subgroup in group.subgroups %}
+                  {# Only render subgroup if it has content #}
+                  {% set has_content = false %}
+                  {% if subgroup.albums|length > 0 %}
+                    {% set has_content = true %}
+                  {% elseif subgroup.subgroups and subgroup.subgroups|length > 0 %}
+                    {% set has_content = true %}
+                  {% endif %}
+
+                  {% if has_content %}
+                    {{ _self.render_group_recursive(subgroup, columns, gap, field_mapping_config, view, depth + 1) }}
+                  {% endif %}
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
     {% else %}
-      {% set display_group = false %}
+      {# If no title, just render albums and subgroups directly #}
+      {% if group.albums|length > 0 %}
+        {{ _self.render_albums(group, columns, gap, field_mapping_config, view, false) }}
+      {% endif %}
+
+      {% if group.subgroups and group.subgroups|length > 0 %}
+        <div class="draggable-flexgrid__subgroups-container media-light-table-subgroups-container">
+          {% for subgroup in group.subgroups %}
+            {# Only render subgroup if it has content #}
+            {% set has_content = false %}
+            {% if subgroup.albums|length > 0 %}
+              {% set has_content = true %}
+            {% elseif subgroup.subgroups and subgroup.subgroups|length > 0 %}
+              {% set has_content = true %}
+            {% endif %}
+
+            {% if has_content %}
+              {{ _self.render_group_recursive(subgroup, columns, gap, field_mapping_config, view, depth + 1) }}
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
     {% endif %}
-
-       {# Render albums at this level #}
-       {{ _self.render_albums(group, columns, gap, field_mapping_config, view, display_group) }}
-
-  {# Render subgroups recursively #}
-  {% if group.subgroups %}
-    {% for subgroup in group.subgroups %}
-      <div class="draggable-flexgrid__subgroup media-light-table-subgroup">
-        {{ _self.render_group_recursive(subgroup, columns, gap, field_mapping_config, view) }}
-      </div>
-    {% endfor %}
-  {% endif %}
 {% endmacro %}
 
 {# Main container #}

@@ -17,12 +17,14 @@
       ).forEach(function (grid) {
         console.log("Initializing Sortable on grid:", grid);
 
-        const albumGroups = settings?.dragtool?.sortable?.albumsGroup ?? [];
+        // Get group name from data attribute
+        const groupClass = grid.dataset.albumGrp;
 
-        // search if this grid is part of an album group
-        const groupClass = albumGroups
-          .map((id) => `album-group-${id}`)
-          .find((cls) => grid.classList.contains(cls));
+        // Check if this group is valid based on settings
+        const albumGroups = settings?.dragtool?.sortable?.albumsGroup ?? [];
+        const isValidGroup =
+          albumGroups.length === 0 ||
+          albumGroups.some((id) => groupClass === `album-group-${id}`);
 
         // Initialiser Sortable sur le conteneur
         const sortable = Sortable.create(grid, {
@@ -47,10 +49,10 @@
             console.log("Album order:", albumorder);
           },
         });
-        
+
         // Store reference to Sortable instance on the grid element
         grid._sortableInstance = sortable;
-        
+
         // Sauvegarder l'instance avec le nom du groupe
         sortableInstances.push({
           group: groupClass,

@@ -19,8 +19,8 @@ use Drupal\media_album_av_common\Traits\MediaTrait;
  * @ingroup views_style_plugins
  *
  * @ViewsStyle(
- *   id = "media_album_light_table",
- *   title = @Translation("Media Album Light Table"),
+ *   id = "media_album_light_table_1",
+ *   title = @Translation("Media Album Light Table V1"),
  *   help = @Translation("Renders a light table specifically for media album items."),
  *   theme = "views_view_media_album_light_table",
  *   display_types = {"normal"}

@@ -34,23 +34,33 @@
   font-size: 13px;
 }
 
-/* Group title styles - unified element with level-based styling */
-.media-light-table-group-title {
+.media-light-table-group-album-title {
   font-weight: 600;
   padding-bottom: 0px;
   display: block;
-}
-
-.media-light-table-group-title[data-level="0"] {
-  margin: 0px 0 3px 0;;
+  margin: 0px 0 3px 0;
   font-size: 1.2rem;
   color: #333;
   border-bottom: 2px solid #4a90e2;
   margin-left: 0;
 }
 
-.media-light-table-group-title[data-level="1"] {
+/* Group title styles - unified element with level-based styling */
+.media-light-table-group-title {
+  font-weight: 400;
+  padding-bottom: 0px;
+  display: block;
+}
+
+.media-light-table-group-title[data-level="0"] {
+  margin: 0px 0 3px 0;
   font-size: 1rem;
+  color: #666;
+  margin-left: 0;
+}
+
+.media-light-table-group-title[data-level="1"] {
+  font-size: 0.9rem;
   color: #555;
   /* border-bottom: 1px solid #ccc; */
   margin-left: 12px;
@@ -61,7 +71,7 @@
 .media-light-table-group-title[data-level="4"],
 .media-light-table-group-title[data-level="5"] {
   /* margin: 8px 0 6px 0; */
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: #666;
   margin-left: 24px;
 }
@@ -129,4 +139,29 @@
 
 .media-light-table-album-container {
   min-height: 2rem;
+}
+
+.media-light-table-grouping-name {
+  writing-mode: vertical-rl; /* Écriture verticale de droite à gauche */
+  text-orientation: mixed; /* Orientation du texte */
+  transform: rotate(180deg); /* Rotation pour lire de bas en haut */
+  white-space: nowrap; /* Empêche le retour à la ligne */
+  position: absolute;
+  left: 0.2rem;
+  top: 1.3rem;
+  display: grid;
+  align-items: center;
+  justify-content: end;
+  font-size: 0.9rem;
+}
+
+/* Ajuster le conteneur parent pour faire de la place */
+.media-light-table-group-wrapper____ {
+  position: relative;
+  padding-left: 1.2rem; /* Ajuster selon la largeur nécessaire */
+}
+
+.media-light-table-group-wrapper[data-level] {
+  position: relative;
+  padding-left: 1.5rem; /* Padding fixe pour tous les niveaux (place pour le texte) */
 }

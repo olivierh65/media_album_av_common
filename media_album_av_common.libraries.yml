@@ -17,8 +17,8 @@ directory_selector:
     - core/drupal
     - core/once
     - core/drupalSettings
-    - /jstree
-    - /taxonomy-manager
+    - media_album_av_common/jstree
+    - media_album_av_common/taxonomy-manager
 
 taxonomy-manager:
   version: 1.x
@@ -27,7 +27,7 @@ taxonomy-manager:
       css/taxonomy-manager.css: {}
   dependencies:
     - core/jquery
-    - /jstree
+    - media_album_av_common/jstree
 
 dragula:
   version: 3.7.3
@@ -72,8 +72,8 @@ draggable-flexgrid:
   dependencies:
     - core/drupal
     - core/once
-    - /dragula
-    - /sortablejs
+    - media_album_av_common/dragula
+    - media_album_av_common/sortablejs
 
 draggable-flexgrid-light-table-groups:
   version: 1.x
@@ -90,7 +90,7 @@ draggable-flexgrid-vbo:
   dependencies:
     - core/drupal
     - core/once
-    - /draggable-flexgrid
+    - media_album_av_common/draggable-flexgrid
 
 
 media-light-table:
@@ -110,7 +110,7 @@ media-light-table:
   dependencies:
     - core/drupal
     - core/once
-    - /dragula
+    - media_album_av_common/dragula
 
 media-light-table-vbo:
   version: 1.x
@@ -119,7 +119,7 @@ media-light-table-vbo:
   dependencies:
     - core/drupal
     - core/once
-    - /draggable-flexgrid-vbo
+    - media_album_av_common/draggable-flexgrid
 
 media-light-table-modal:
   version: 1.x
@@ -153,4 +153,4 @@ draggable-flexgrid-light-table-selection:
   dependencies:
     - core/drupal
     - core/once
-    - /draggable-flexgrid
+    - media_album_av_common/draggable-flexgrid

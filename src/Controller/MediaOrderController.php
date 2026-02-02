@@ -107,217 +107,107 @@ class MediaOrderController extends ControllerBase {
     }
 
     $logger = $this->loggerFactory->get('media_album_av_common');
-    $entity_type_manager = \Drupal::entityTypeManager();
+    $etm = \Drupal::entityTypeManager();
 
-    // Group items by nid.
-    $items_by_nid = [];
-    // Group items by termid for taxonomy updates.
-    $items_by_termid = [];
+    $node_updates = [];
+    $media_updates = [];
 
     foreach ($media_items as $item) {
-      if (!empty($item['nid'])) {
-        $nid = $item['nid'];
-        if (!isset($items_by_nid[$nid])) {
-          $items_by_nid[$nid] = [];
-        }
-        $items_by_nid[$nid][] = $item;
+      $weight = (int) $item['weight'];
+      $orig_weight = isset($item['orig_weight']) ? (int) $item['orig_weight'] : NULL;
+      $termid = (int) ($item['termid'] ?? 0);
+      $orig_termid = isset($item['orig_termid']) ? (int) $item['orig_termid'] : NULL;
+      $field_name = $item['field_name'] ?? NULL;
+
+      // ---------- NODE ORDERING ----------
+      if (!empty($item['nid']) && !empty($item['media_id']) && $weight !== $orig_weight) {
+        $node_updates[$item['nid']][] = [
+          'media_id' => (int) $item['media_id'],
+          'weight' => $weight,
+        ];
       }
 
-      if (!empty($item['termid']) && !empty($item['field_name'])) {
-        $termid = $item['termid'];
-        if (!isset($items_by_termid[$termid])) {
-          $items_by_termid[$termid] = [];
+      // ---------- MEDIA TAXONOMY UPDATE ----------
+      if ($orig_termid !== NULL && $termid !== (int) $orig_termid && !empty($item['field_name'])) {
+        if (str_starts_with($item['field_name'], 'media:')) {
+          $media_updates[(int) $item['media_id']][] = [
+            'field_name' => substr($item['field_name'], 6),
+            'termid' => $termid,
+          ];
         }
-        $items_by_termid[$termid][] = $item;
       }
     }
 
-    // Process each node.
-    foreach ($items_by_nid as $nid => $items) {
+    // ================= NODE REORDERING =================
+    foreach ($node_updates as $nid => $items) {
       try {
-        // Load the node.
-        $node = $entity_type_manager->getStorage('node')->load($nid);
+        $node = $etm->getStorage('node')->load($nid);
         if (!$node) {
           $logger->warning('Node @nid not found', ['@nid' => $nid]);
           continue;
         }
 
-        // Get the media reference field.
         $media_field = $this->getMediaReferenceField($node);
         if (!$media_field) {
           $logger->warning('No media reference field found for node @nid', ['@nid' => $nid]);
           continue;
         }
 
-        // Sort items by weight.
-        usort($items, function ($a, $b) {
-          return $a['weight'] <=> $b['weight'];
-        });
+        usort($items, fn($a, $b) => $a['weight'] <=> $b['weight']);
 
-        // Get current media references.
-        $field_value = $node->get($media_field)->getValue();
-        $current_medias = [];
-        foreach ($field_value as $delta => $ref) {
-          if (isset($ref['target_id'])) {
-            $current_medias[$ref['target_id']] = $delta;
-          }
+        $new_values = [];
+        foreach ($items as $item) {
+          $new_values[] = ['target_id' => $item['media_id']];
         }
 
-        // Build new field values with correct deltas.
-        $new_field_values = [];
-        foreach ($items as $index => $item) {
-          $media_id = $item['media_id'];
+        $node->set($media_field, $new_values);
+        $node->save();
 
-          if (isset($current_medias[$media_id])) {
-            // Media exists, update delta if needed.
-            $old_delta = $current_medias[$media_id];
-            $new_delta = $index;
-
-            if ($old_delta != $new_delta) {
-              // Delta changed, need to reorder.
-              $new_field_values[$new_delta] = [
-                'target_id' => $media_id,
-              ];
-              $logger->info('Reordering media @media_id from delta @old_delta to @new_delta in node @nid',
-                [
-                  '@media_id' => $media_id,
-                  '@old_delta' => $old_delta,
-                  '@new_delta' => $new_delta,
-                  '@nid' => $nid,
-                ]
-              );
-            }
-            else {
-              // Delta unchanged, keep as is.
-              $new_field_values[$new_delta] = [
-                'target_id' => $media_id,
-              ];
-            }
-          }
-        }
-
-        // Update the field with new ordering.
-        if (!empty($new_field_values)) {
-          // Re-index the array to ensure proper delta sequence.
-          $new_field_values = array_values($new_field_values);
-          $node->set($media_field, $new_field_values);
-          $node->save();
-
-          $logger->info('Media order updated for node @nid, @count items reordered',
-            [
-              '@nid' => $nid,
-              '@count' => count($new_field_values),
-            ]
-          );
-        }
+        $logger->info('Updated media ordering for node @nid', ['@nid' => $nid]);
       }
-      catch (\Exception $e) {
-        $logger->error('Error processing media order for node @nid: @error',
-          [
-            '@nid' => $nid,
-            '@error' => $e->getMessage(),
-          ]
-        );
+      catch (\Throwable $e) {
+        $logger->error('Error reordering media for node @nid: @msg', [
+          '@nid' => $nid,
+          '@msg' => $e->getMessage(),
+        ]);
       }
     }
 
-    // Process each taxonomy term - update media references.
-    foreach ($items_by_termid as $termid => $items) {
+    // ================= MEDIA TAXONOMY UPDATE =================
+    foreach ($media_updates as $media_id => $updates) {
       try {
-        // Get field info from the first item.
-        $first_item = reset($items);
-        $field_name = $first_item['field_name'] ?? NULL;
-        $field_type = $first_item['field_type'] ?? NULL;
-
-        // Verify this is an entity_reference field.
-        if ($field_type !== 'entity_reference') {
-          $logger->warning('Field @field_name is not an entity_reference field (type: @type), skipping media update',
-            [
-              '@field_name' => $field_name,
-              '@type' => $field_type,
-            ]
-          );
+        $media = $etm->getStorage('media')->load($media_id);
+        if (!$media) {
+          $logger->warning('Media @mid not found', ['@mid' => $media_id]);
           continue;
         }
 
-        if (!$field_name) {
-          $logger->warning('No field_name provided for termid @termid, skipping media update', ['@termid' => $termid]);
-          continue;
-        }
+        foreach ($updates as $update) {
+          $field_name = $update['field_name'];
+          $termid = $update['termid'];
 
-        // Load and update each media item.
-        foreach ($items as $item) {
-          $media_id = $item['media_id'] ?? NULL;
-          if (!$media_id) {
+          if (!$media->hasField($field_name)) {
+            $logger->warning('Field @field missing on media @mid', [
+              '@field' => $field_name,
+              '@mid' => $media_id,
+            ]);
             continue;
           }
 
-          try {
-            // Load the media entity.
-            $media = $entity_type_manager->getStorage('media')->load($media_id);
-            if (!$media) {
-              $logger->warning('Media @media_id not found', ['@media_id' => $media_id]);
-              continue;
-            }
-
-            // Verify the field exists on the media.
-            if (!$media->hasField($field_name)) {
-              $logger->warning('Field @field_name does not exist on media @media_id',
-                [
-                  '@field_name' => $field_name,
-                  '@media_id' => $media_id,
-                ]
-              );
-              continue;
-            }
-
-            // Get the current field value.
-            $current_value = $media->get($field_name)->getValue();
-
-            // Check if termid is already set correctly.
-            $needs_update = TRUE;
-            if (!empty($current_value)) {
-              // Check if the first reference is already the termid.
-              if (isset($current_value[0]['target_id']) && $current_value[0]['target_id'] == $termid) {
-                $needs_update = FALSE;
-              }
-            }
-
-            // Update the field if needed.
-            if ($needs_update) {
-              $media->set($field_name, [
-                [
-                  'target_id' => $termid,
-                ]
-              ]);
-              $media->save();
-
-              $logger->info('Updated media @media_id field @field_name to reference term @termid',
-                [
-                  '@media_id' => $media_id,
-                  '@field_name' => $field_name,
-                  '@termid' => $termid,
-                ]
-              );
-            }
-          }
-          catch (\Exception $e) {
-            $logger->error('Error updating media @media_id: @error',
-              [
-                '@media_id' => $media_id,
-                '@error' => $e->getMessage(),
-              ]
-            );
+          $current = $media->get($field_name)->target_id ?? NULL;
+          if ($current != $termid) {
+            $media->set($field_name, ['target_id' => $termid]);
           }
         }
+
+        $media->save();
+        $logger->info('Updated taxonomy fields for media @mid', ['@mid' => $media_id]);
       }
-      catch (\Exception $e) {
-        $logger->error('Error processing media references for termid @termid: @error',
-          [
-            '@termid' => $termid,
-            '@error' => $e->getMessage(),
-          ]
-        );
+      catch (\Throwable $e) {
+        $logger->error('Error updating media @mid: @msg', [
+          '@mid' => $media_id,
+          '@msg' => $e->getMessage(),
+        ]);
       }
     }
   }

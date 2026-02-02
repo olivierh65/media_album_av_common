@@ -18,7 +18,9 @@
         console.log("Initializing Sortable on grid:", grid);
 
         // Get CSS class names from settings with fallback defaults
-        const thumbnailClass = settings?.dragtool?.lightTable?.thumbnail ?? '.media-light-table-thumbnail';
+        const thumbnailClass =
+          settings?.dragtool?.lightTable?.thumbnail ??
+          ".media-light-table-thumbnail";
 
         // Get group name from data attribute
         const groupClass = grid.dataset.albumGrp;
@@ -91,23 +93,37 @@
       });
 
       function updateOnEnd(evt) {
-        const el = evt.item; // L'élément déplacé
-        const toElement = evt.to; // Conteneur cible
-        const fromElement = evt.from; // Conteneur source
+        const fromTermId = evt.from.dataset.termid;
+        const toTermId = evt.to.dataset.termid;
 
-        // Get termId from thumbnail of the moved element
-        const thumbnailEl = el.querySelector(settings?.dragtool?.lightTable?.thumbnail ?? '.media-light-table-thumbnail');
-        const toTermId = toElement.dataset.termid;
-        const fromTermId = thumbnailEl?.dataset.origTermid;
 
-        console.log(
-          "Element moved:",
-          thumbnailEl?.dataset.mediaId,
-          "from termid",
-          fromTermId,
-          "to termid",
-          toTermId,
-        );
+        // Logique multi-drag : SortableJS met les éléments dans evt.items
+        const items =
+          evt.items && evt.items.length > 0 ? evt.items : [evt.item];
+
+        items.forEach((itemEl) => {
+          const thumbnail = itemEl.querySelector(
+            settings?.dragtool?.lightTable?.thumbnail ??
+              ".media-light-table-thumbnail",
+          );
+          if (!thumbnail) {
+            console.warn(
+              "Thumbnail element not found for item:",
+              itemEl,
+            );
+            return;
+          }
+          thumbnail.dataset.termid = toTermId;
+
+          console.log(
+            "Element moved:",
+            itemEl.dataset.id,
+            "from termid",
+            fromTermId,
+            "to termid",
+            toTermId,
+          );
+        });
       }
       /**
        * Retourne l'ordre des médias par conteneur pour un album donné
@@ -136,32 +152,6 @@
         });
 
         return result;
-      }
-
-
-      // Fonction pour sauvegarder l'ordre sur le serveur
-      function saveOrderToServer(order) {
-        fetch(
-          Drupal.url(
-            settings?.dragtool?.callbacks["saveorder"] ??
-              "media-drop/draggable-flexgrid/save-order",
-          ),
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-CSRF-Token": drupalSettings.csrf_token,
-            },
-            body: JSON.stringify({ order: order }),
-          },
-        )
-          .then((response) => response.json())
-          .then((data) => {
-            console.log("Order saved successfully:", data);
-          })
-          .catch((error) => {
-            console.error("Error saving order:", error);
-          });
       }
     },
   };

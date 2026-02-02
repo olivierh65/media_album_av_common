@@ -14,21 +14,36 @@
   const reorganizationState = {};
 
   Drupal.behaviors.mediaLightTableSelection = {
-    attach(context) {
+    attach(context, settings) {
+      // Get CSS class names from settings with fallback defaults
+      const lightTableContentClass = settings?.dragtool?.lightTable?.container ?? '.light-table-content';
+      const mediaGridClass = settings?.dragtool?.lightTable?.gridContainer ?? '.media-grid.media-light-table-album-container';
+      const mediaItemClass = settings?.dragtool?.lightTable?.mediaItem ?? '.media-light-table-media-item';
+      const zoomTriggerClass = settings?.dragtool?.lightTable?.zoomTrigger ?? '.media-light-table-zoom-trigger';
+      const handleClass = settings?.dragtool?.lightTable?.handle ?? '.draggable-flexgrid__handle';
+      const menuHandleClass = settings?.dragtool?.lightTable?.menuHandle ?? '.draggable-flexgrid__menu-handle';
+      const selectedClass = settings?.dragtool?.lightTable?.selectedClass ?? 'selected';
+      const groupContainerClass = settings?.dragtool?.lightTable?.groupContainer ?? '.draggable-flexgrid__group-container';
+      const counterWrapperClass = settings?.dragtool?.lightTable?.counterWrapper ?? 'media-light-table-group-counter-wrapper';
+      const counterClass = settings?.dragtool?.lightTable?.counter ?? 'media-light-table-group-selection-counter';
+      const saveButtonClass = settings?.dragtool?.lightTable?.saveButton ?? 'media-light-table-save-button';
+      const thumbnailClass = settings?.dragtool?.lightTable?.thumbnail ?? '.media-light-table-thumbnail';
+      const saveOrderEndpoint = settings?.dragtool?.callbacks?.saveMediaOrder ?? 'media-album-av-common/save-media-order';
+
       // Process each album view independently
-      once('media-light-table-selection', '.light-table-content', context).forEach(function (albumView) {
+      once('media-light-table-selection', lightTableContentClass, context).forEach(function (albumView) {
         // Find all grids within this album view
-        const allGrids = albumView.querySelectorAll('.media-grid.media-light-table-album-container');
+        const allGrids = albumView.querySelectorAll(mediaGridClass);
 
         // Attach click listeners to all items in all grids
-        const allItems = albumView.querySelectorAll('.media-light-table-media-item');
+        const allItems = albumView.querySelectorAll(mediaItemClass);
 
         allItems.forEach((item) => {
           item.addEventListener('click', function (e) {
             // Prevent triggering on children like zoom button or drag handle
-            if (e.target.closest('.media-light-table-zoom-trigger') ||
-                e.target.closest('.draggable-flexgrid__handle') ||
-                e.target.closest('.draggable-flexgrid__menu-handle')) {
+            if (e.target.closest(zoomTriggerClass) ||
+                e.target.closest(handleClass) ||
+                e.target.closest(menuHandleClass)) {
               return;
             }
 
@@ -36,18 +51,18 @@
             e.stopPropagation();
 
             // Get the parent grid
-            const grid = item.closest('.media-grid.media-light-table-album-container');
+            const grid = item.closest(mediaGridClass);
             const sortableInstance = grid ? grid._sortableInstance || null : null;
 
             // Shift+click: range selection within the same grid
             if (e.shiftKey) {
-              const gridItems = grid ? Array.from(grid.querySelectorAll('.media-light-table-media-item')) : [];
+              const gridItems = grid ? Array.from(grid.querySelectorAll(mediaItemClass)) : [];
               const currentIndex = gridItems.indexOf(item);
 
               // Find last selected item in this grid
               let lastSelectedIndex = -1;
               for (let i = gridItems.length - 1; i >= 0; i--) {
-                if (gridItems[i].classList.contains('selected')) {
+                if (gridItems[i].classList.contains(selectedClass)) {
                   lastSelectedIndex = i;
                   break;
                 }
@@ -59,7 +74,7 @@
 
                 for (let i = start; i <= end; i++) {
                   const itemToSelect = gridItems[i];
-                  itemToSelect.classList.add('selected');
+                  itemToSelect.classList.add(selectedClass);
                   // Sync with Sortable's multiDrag system
                   if (sortableInstance) {
                     Sortable.utils.select(itemToSelect);
@@ -69,8 +84,8 @@
             }
             // Ctrl/Cmd+click or regular click: toggle
             else {
-              const isSelected = item.classList.contains('selected');
-              item.classList.toggle('selected');
+              const isSelected = item.classList.contains(selectedClass);
+              item.classList.toggle(selectedClass);
               // Sync with Sortable's multiDrag system
               if (sortableInstance) {
                 if (isSelected) {
@@ -130,12 +145,12 @@
         if (!albumView || !albumGrp) return;
 
         // Find all grids with this album group
-        const gridsInGroup = albumView.querySelectorAll(`.media-grid.media-light-table-album-container[data-album-grp="${albumGrp}"]`);
+        const gridsInGroup = albumView.querySelectorAll(`${mediaGridClass}[data-album-grp="${albumGrp}"]`);
 
         // Count selected items in all grids of this group
         let totalSelected = 0;
         gridsInGroup.forEach((grid) => {
-          const selectedCount = grid.querySelectorAll('.media-light-table-media-item.selected').length;
+          const selectedCount = grid.querySelectorAll(`.${mediaItemClass.replace(/^\.|^#/g, '')}.${selectedClass}`).length;
           totalSelected += selectedCount;
         });
 
@@ -148,10 +163,10 @@
 
         // Look for the group commandes div
         for (const grid of gridsInGroup) {
-          const container = grid.closest('.draggable-flexgrid__group-container');
+          const container = grid.closest(groupContainerClass);
           if (container) {
             groupContainer = container;
-            counterWrapper = container.querySelector('.media-light-table-group-counter-wrapper');
+            counterWrapper = container.querySelector(`.${counterWrapperClass}`);
             if (counterWrapper) break;
           }
         }
@@ -159,21 +174,21 @@
         // If no counter wrapper found, create one in the first grid's parent
         if (!counterWrapper && gridsInGroup.length > 0) {
           const firstGrid = gridsInGroup[0];
-          let container = firstGrid.closest('.draggable-flexgrid__group-container');
+          let container = firstGrid.closest(groupContainerClass);
 
           if (container) {
             counterWrapper = document.createElement('div');
-            counterWrapper.className = 'media-light-table-group-counter-wrapper';
+            counterWrapper.className = counterWrapperClass;
             container.insertBefore(counterWrapper, container.firstChild);
 
             // Create counter
             const counter = document.createElement('span');
-            counter.className = 'media-light-table-group-selection-counter';
+            counter.className = counterClass;
             counterWrapper.appendChild(counter);
 
             // Create save button
             const saveBtn = document.createElement('button');
-            saveBtn.className = 'media-light-table-save-button';
+            saveBtn.className = saveButtonClass;
             saveBtn.type = 'button';
             saveBtn.textContent = 'Sauvegarder';
             saveBtn.setAttribute('data-album-grp', albumGrp);
@@ -187,8 +202,8 @@
         }
 
         // Update counter and button state
-        const counter = counterWrapper ? counterWrapper.querySelector('.media-light-table-group-selection-counter') : null;
-        const saveBtn = counterWrapper ? counterWrapper.querySelector('.media-light-table-save-button') : null;
+        const counter = counterWrapper ? counterWrapper.querySelector(`.${counterClass}`) : null;
+        const saveBtn = counterWrapper ? counterWrapper.querySelector(`.${saveButtonClass}`) : null;
 
         if (counter && saveBtn) {
           // Show wrapper if there are changes or selections
@@ -212,34 +227,30 @@
 
       function saveAlbumReorganization(albumView, albumGrp) {
         // Find all grids with this album group
-        const gridsInGroup = albumView.querySelectorAll(`.media-grid.media-light-table-album-container[data-album-grp="${albumGrp}"]`);
+        const gridsInGroup = albumView.querySelectorAll(`${mediaGridClass}[data-album-grp="${albumGrp}"]`);
 
         // Build media order data
         const mediaOrder = [];
         gridsInGroup.forEach((grid) => {
-          const termId = grid.getAttribute('data-termid');
-          const nid = grid.getAttribute('data-nid');
-          const fieldName = grid.getAttribute('data-field-name');
-          const fieldType = grid.getAttribute('data-field-type');
-          
-          // Get orig field info from the first media item's thumbnail in this grid
-          let origFieldName = null;
-          let origFieldType = null;
-          const thumbnailEl = grid.querySelector('.media-light-table-thumbnail');
-          if (thumbnailEl) {
-            origFieldName = thumbnailEl.getAttribute('data-orig-field-name');
-            origFieldType = thumbnailEl.getAttribute('data-orig-field-type');
-          }
-          
-          const items = grid.querySelectorAll('.media-light-table-media-item');
+          const items = grid.querySelectorAll(mediaItemClass);
           items.forEach((item, index) => {
-            const mediaId = item.getAttribute('data-media-id') || item.getAttribute('data-id');
+            const thumbnailEl = item.querySelector(thumbnailClass);
+            const termId = thumbnailEl?.dataset.termid || grid.dataset.termid;
+            const origTermid = thumbnailEl?.dataset.origTermid || null;
+            const nid = grid.dataset.nid;
+            const fieldName = thumbnailEl?.dataset.fieldName || grid.dataset.fieldName;
+            const fieldType = thumbnailEl?.dataset.fieldType || grid.dataset.fieldType;
+            const origFieldName = thumbnailEl?.dataset.origFieldName || null;
+            const origFieldType = thumbnailEl?.dataset.origFieldType || null;
+
+            const mediaId = thumbnailEl?.dataset.mediaId || thumbnailEl?.dataset.entityId;
             if (mediaId) {
               mediaOrder.push({
                 media_id: mediaId,
                 weight: index,
                 album_grp: albumGrp,
                 termid: termId,
+                orig_termid: origTermid,
                 nid: nid,
                 field_name: fieldName,
                 field_type: fieldType,
@@ -253,7 +264,7 @@
         // Send AJAX request to save reorganization
         if (mediaOrder.length > 0) {
           // Get save button and disable it
-          const saveBtn = albumView.querySelector(`.media-light-table-save-button[data-album-grp="${albumGrp}"]`);
+          const saveBtn = albumView.querySelector(`.${saveButtonClass}[data-album-grp="${albumGrp}"]`);
           if (saveBtn) {
             saveBtn.disabled = true;
             const originalText = saveBtn.textContent;
@@ -263,7 +274,7 @@
             saveBtn.classList.add('is-loading');
           }
 
-          fetch(Drupal.url('media-album-av-common/save-media-order'), {
+          fetch(Drupal.url(saveOrderEndpoint), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -281,9 +292,9 @@
                 // Clear reorganization state for this group
                 reorganizationState[albumGrp] = false;
                 // Optionally clear selection
-                const selectedItems = albumView.querySelectorAll(`.media-light-table-media-item.selected`);
+                const selectedItems = albumView.querySelectorAll(`${mediaItemClass}.${selectedClass}`);
                 selectedItems.forEach(item => {
-                  item.classList.remove('selected');
+                  item.classList.remove(selectedClass);
                 });
                 // Update counter
                 updateSelectionCountForGroup(albumView, albumGrp);

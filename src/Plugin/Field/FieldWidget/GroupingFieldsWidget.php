@@ -19,7 +19,7 @@ use Drupal\Component\Utility\NestedArray;
  * id = "grouping_fields_widget",
  * label = @Translation("Grouping Fields Selector"),
  * field_types = {
- * "list_string"
+ * "string_long"
  * },
  * multiple_values = TRUE
  * )
@@ -68,6 +68,10 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
     $element['#attached']['library'][] = 'core/drupal.tabledrag';
     $element['#attached']['library'][] = 'core/drupal.ajax';
 
+    // Disable field-level validation to allow custom JSON values
+    // Validation will be handled in massageFormValues()
+    $element['#validated'] = TRUE;
+
     $field_options = $this->getFieldOptions();
     if (empty($field_options)) {
       $element['warning'] = [
@@ -80,6 +84,7 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
     $element['grouping_fieldset'] = [
       '#type' => 'fieldset',
       '#title' => $this->t('Define grouping hierarchy'),
+      '#element_validate' => [[static::class, 'validateGroupingFieldset']],
     ];
 
     $element['grouping_fieldset']['grouping_table'] = [
@@ -89,15 +94,18 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
       '#tabledrag' => [['action' => 'order', 'relationship' => 'sibling', 'group' => 'grouping-order-weight']],
     ];
 
-    // Calcul des valeurs pour chaque ligne.
+    // Create rows for grouping levels (up to 5 levels).
+    $max_levels = 5;
     $stored_values = [];
-    foreach ($items as $item) {
-      if (!empty($item->value)) {
-        $stored_values[] = $item->value;
+
+    for ($d = 0; $d < $max_levels; $d++) {
+      if (isset($items[$d]) && !empty($items[$d]->value)) {
+        $stored_values[$d] = $items[$d]->value;
+      }
+      else {
+        $stored_values[$d] = '';
       }
     }
-    // Ligne pour nouvel ajout.
-    $stored_values[] = '';
 
     foreach ($stored_values as $d => $value) {
       $wrapper_id = 'terms-wrapper-' . $d;
@@ -115,6 +123,18 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
       else {
         $data = json_decode($value, TRUE) ?: ['field' => $value, 'terms' => []];
         $selected_field = $data['field'] ?? '';
+
+        // Debug: log restored data.
+        if (!empty($value) && is_array($data) && !empty($data['terms'])) {
+          \Drupal::logger('media_album_av_common')->debug(
+            'Restored level @level: field=@field, terms=@terms',
+            [
+              '@level' => $d,
+              '@field' => $selected_field,
+              '@terms' => json_encode($data['terms']),
+            ]
+          );
+        }
       }
 
       $element['grouping_fieldset']['grouping_table'][$d]['#attributes']['class'] = ['draggable'];
@@ -158,6 +178,25 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
         $terms = $this->getTermsForField($clean_field_name, $entity_type, $vocab_id);
 
         if (!empty($terms)) {
+          // Sort terms by their saved weights.
+          $terms_with_weights = [];
+          foreach ($terms as $tid => $term_label) {
+            $tid_key = (string) $tid;
+            // For the pseudo-term "0" (Non classé), default weight to 100 to position at the end.
+            $default_weight = ($tid === 0) ? 100 : 0;
+            $weight = $data['terms'][$tid_key] ?? $default_weight;
+            $terms_with_weights[$tid] = [
+              'label' => $term_label,
+              'weight' => $weight,
+            ];
+          }
+
+          // Sort by weight, then by label for consistency.
+          uasort($terms_with_weights, function ($a, $b) {
+            $cmp = $a['weight'] <=> $b['weight'];
+            return $cmp !== 0 ? $cmp : strcasecmp($a['label'], $b['label']);
+          });
+
           $element['grouping_fieldset']['grouping_table'][$d]['field_container']['terms_config']['details'] = [
             '#type' => 'details',
             '#title' => $this->t('Ordre des termes pour %field', ['%field' => $clean_field_name]),
@@ -170,14 +209,13 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
             '#tabledrag' => [['action' => 'order', 'relationship' => 'sibling', 'group' => 'term-weight-' . $d]],
           ];
 
-          foreach ($terms as $tid => $term_label) {
-            $weight = $data['terms'][$tid] ?? 0;
+          foreach ($terms_with_weights as $tid => $term_data) {
             $element['grouping_fieldset']['grouping_table'][$d]['field_container']['terms_config']['details']['term_order'][$tid] = [
               '#attributes' => ['class' => ['draggable']],
-              'label' => ['#markup' => $term_label],
+              'label' => ['#markup' => $term_data['label']],
               'weight' => [
                 '#type' => 'weight',
-                '#default_value' => $weight,
+                '#default_value' => $term_data['weight'],
                 '#attributes' => ['class' => ['term-weight-' . $d]],
                 '#delta' => 50,
               ],
@@ -210,17 +248,28 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
   }
 
   /**
+   * Get available grouping field options from the service.
    *
+   * @return array
+   *   Array of field options keyed by 'entity_type:field_name'.
    */
   protected function getFieldOptions() {
     $options = [];
-    $node_fields = $this->groupingFieldsService->getNodeFields();
-    foreach ($node_fields as $fn => $cfg) {
-      $options['node:' . $fn] = $cfg['label'] . ' (Album)';
+    try {
+      $node_fields = $this->groupingFieldsService->getNodeFields();
+      foreach ($node_fields as $fn => $cfg) {
+        $options['node:' . $fn] = $cfg['label'] . ' (Album)';
+      }
+      $media_fields = $this->groupingFieldsService->getMediaFields();
+      foreach ($media_fields as $fn => $cfg) {
+        $options['media:' . $fn] = $cfg['label'] . ' (Media)';
+      }
     }
-    $media_fields = $this->groupingFieldsService->getMediaFields();
-    foreach ($media_fields as $fn => $cfg) {
-      $options['media:' . $fn] = $cfg['label'] . ' (Media)';
+    catch (\Exception $e) {
+      \Drupal::logger('media_album_av_common')->error(
+        'Error getting field options: @message',
+        ['@message' => $e->getMessage()]
+          );
     }
     return $options;
   }
@@ -243,7 +292,9 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
         ];
         if (!empty($row['field_container']['terms_config']['details']['term_order'])) {
           foreach ($row['field_container']['terms_config']['details']['term_order'] as $tid => $term_row) {
-            $storage['terms'][$tid] = $term_row['weight'];
+            // Convert tid to string for JSON consistency.
+            $tid_key = (string) $tid;
+            $storage['terms'][$tid_key] = (int) $term_row['weight'];
           }
           asort($storage['terms']);
         }
@@ -280,6 +331,10 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
       // Convert tree structure to flat options array.
       $options = [];
       $this->flattenTreeToOptions($tree_data, $options);
+
+      // Add pseudo-term for unclassified/ungrouped items (termid = 0).
+      // Position it at the end by default with a higher weight.
+      $options[0] = $this->t('Non classé');
 
       return $options;
     }
@@ -397,6 +452,22 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
     }
 
     return NULL;
+  }
+
+  /**
+   * Custom validation for grouping field values.
+   *
+   * Allows JSON string values for the grouping configuration.
+   *
+   * @param array $element
+   *   The form element.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   */
+  public static function validateGroupingFieldset(array $element, FormStateInterface $form_state) {
+    // This validation is intentionally empty to allow custom JSON values
+    // The actual data transformation happens in massageFormValues().
+    // This prevents the default field validation from rejecting our JSON values.
   }
 
 }

@@ -55,16 +55,28 @@ class AlbumGroupingConfigService {
       return [];
     }
 
-    // @todo field should be dynamic based on actual field name.
-    if (!$album_node->hasField('field_media_album_av_grouping')) {
+    // Get the grouping config field name from settings.
+    $config = \Drupal::config('media_album_av.settings');
+    $grouping_field = $config->get('grouping_config_field') ?? 'field_media_album_av_grouping';
+
+    if (!$album_node->hasField($grouping_field)) {
       return [];
     }
 
     $fields = [];
-    foreach ($album_node->get('field_media_album_av_grouping') as $item) {
-      $field_name = $item->value;
-      if (!empty($field_name) && $this->groupingFieldsService->isValidField($field_name)) {
-        $fields[] = $field_name;
+    foreach ($album_node->get($grouping_field) as $item) {
+      // The field now stores JSON with structure: {"field": "node:field_name", "terms": {...}}.
+      $config_data = json_decode($item->value, TRUE);
+
+      if (!empty($config_data['field'])) {
+        $field_name = $config_data['field'];
+        if ($this->groupingFieldsService->isValidField($field_name)) {
+          $fields[] = $field_name;
+        }
+      }
+      // Fallback for legacy plain text values.
+      elseif (!empty($item->value) && $this->groupingFieldsService->isValidField($item->value)) {
+        $fields[] = $item->value;
       }
     }
 

@@ -6,3 +6,44 @@
 .sortable-chosen {
   border: dashed 2px #b30d36;
 }
+
+/**
+ * Layout for group info-action: counter on left, actions on right
+ */
+.draggable-flexgrid__group-info-action {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.media-light-table-group-info {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+.draggable-flexgrid__group-action {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+/**
+ * Layout for actions toolbar: select on left, button on right
+ */
+.media-light-table-actions-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.media-light-table-actions-toolbar .js-form-item {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.media-light-table-actions-toolbar .media-light-table-execute-action {
+  margin-left: auto;
+}

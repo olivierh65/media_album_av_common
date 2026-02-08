@@ -35,7 +35,7 @@
 
 /* === CONTENU === */
 .draggable-flexgrid__content {
-  grid-area: content;
+  grid-area: menu;
   align-self: start;
   min-width: 0;
 }

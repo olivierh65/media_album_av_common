@@ -6,6 +6,8 @@
  * - Click: toggle selection
  * - Shift+click: select range between last selected and current
  * - Ctrl/Cmd+click: toggle selection
+ * - Double-click: select all items in the group
+ * - Shift+double-click: deselect all items in the group
  */
 
 (function (Drupal, once) {
@@ -16,22 +18,22 @@
   Drupal.behaviors.mediaLightTableSelection = {
     attach(context, settings) {
       // Get CSS class names from settings with fallback defaults
-      const lightTableContentClass = settings?.dragtool?.lightTable?.container ?? '.light-table-content';
-      const mediaGridClass = settings?.dragtool?.lightTable?.gridContainer ?? '.media-grid.media-light-table-album-container';
-      const mediaItemClass = settings?.dragtool?.lightTable?.mediaItem ?? '.media-light-table-media-item';
-      const zoomTriggerClass = settings?.dragtool?.lightTable?.zoomTrigger ?? '.media-light-table-zoom-trigger';
-      const handleClass = settings?.dragtool?.lightTable?.handle ?? '.draggable-flexgrid__handle';
-      const menuHandleClass = settings?.dragtool?.lightTable?.menuHandle ?? '.draggable-flexgrid__menu-handle';
-      const selectedClass = settings?.dragtool?.lightTable?.selectedClass ?? 'selected';
-      const groupContainerClass = settings?.dragtool?.lightTable?.groupContainer ?? '.draggable-flexgrid__group-container';
-      const counterWrapperClass = settings?.dragtool?.lightTable?.counterWrapper ?? 'media-light-table-group-counter-wrapper';
-      const counterClass = settings?.dragtool?.lightTable?.counter ?? 'media-light-table-group-selection-counter';
-      const saveButtonClass = settings?.dragtool?.lightTable?.saveButton ?? 'media-light-table-save-button';
-      const thumbnailClass = settings?.dragtool?.lightTable?.thumbnail ?? '.media-light-table-thumbnail';
+      const lightTableContentClass = "." + (settings?.dragtool?.lightTable?.container ?? "light-table-content");
+      const mediaGridClass = "." + (settings?.dragtool?.lightTable?.gridContainer ?? "media-grid media-light-table-album-container");
+      const mediaItemClass = "." + (settings?.dragtool?.lightTable?.mediaItem ?? "media-light-table-media-item");
+      const zoomTriggerClass = "." + (settings?.dragtool?.lightTable?.zoomTrigger ?? "media-light-table-zoom-trigger");
+      const handleClass = "." + (settings?.dragtool?.lightTable?.handle ?? "draggable-flexgrid__handle");
+      const menuHandleClass = "." + (settings?.dragtool?.lightTable?.menuHandle ?? "draggable-flexgrid__menu-handle");
+      const selectedClass = settings?.dragtool?.lightTable?.selectedClass ?? "selected";
+      const groupContainerClass = "." + (settings?.dragtool?.lightTable?.groupContainer ?? "draggable-flexgrid__group-container");
+      const counterWrapperClass = "." + (settings?.dragtool?.lightTable?.counterWrapper ?? "media-light-table-group-counter-wrapper");
+      const counterClass = "." + (settings?.dragtool?.lightTable?.counter ?? "media-light-table-group-selection-counter");
+      const saveButtonClass = "." + (settings?.dragtool?.lightTable?.saveButton ?? "media-light-table-save-button");
+      const thumbnailClass = "." + (settings?.dragtool?.lightTable?.thumbnail ?? "media-light-table-thumbnail");
       const saveOrderEndpoint = settings?.dragtool?.callbacks?.saveMediaOrder ?? 'media-album-av-common/save-media-order';
 
       // Process each album view independently
-      once('media-light-table-selection', lightTableContentClass, context).forEach(function (albumView) {
+      once('media-light-table-select', lightTableContentClass, context).forEach(function (albumView) {
         // Find all grids within this album view
         const allGrids = albumView.querySelectorAll(mediaGridClass);
 
@@ -104,6 +106,53 @@
               }
             }
           });
+
+          // Add double-click listener for group-wide selection
+          item.addEventListener('dblclick', function (e) {
+            // Prevent triggering on children like zoom button or drag handle
+            if (e.target.closest(zoomTriggerClass) ||
+                e.target.closest(handleClass) ||
+                e.target.closest(menuHandleClass)) {
+              return;
+            }
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Get the parent grid
+            const grid = item.closest(mediaGridClass);
+            if (!grid) return;
+
+            const sortableInstance = grid ? grid._sortableInstance || null : null;
+            const gridItems = Array.from(grid.querySelectorAll(mediaItemClass));
+
+            // Shift+double-click: deselect all items in the group
+            if (e.shiftKey) {
+              gridItems.forEach((gridItem) => {
+                gridItem.classList.remove(selectedClass);
+                // Sync with Sortable's multiDrag system
+                if (sortableInstance) {
+                  Sortable.utils.deselect(gridItem);
+                }
+              });
+            }
+            // Double-click: select all items in the group
+            else {
+              gridItems.forEach((gridItem) => {
+                gridItem.classList.add(selectedClass);
+                // Sync with Sortable's multiDrag system
+                if (sortableInstance) {
+                  Sortable.utils.select(gridItem);
+                }
+              });
+            }
+
+            // Update count for the affected album group
+            const albumGrp = grid.getAttribute('data-album-grp');
+            if (albumGrp) {
+              updateSelectionCountForGroup(albumView, albumGrp);
+            }
+          });
         });
 
         // Attach drag and drop listeners to detect reorganization
@@ -150,7 +199,7 @@
         // Count selected items in all grids of this group
         let totalSelected = 0;
         gridsInGroup.forEach((grid) => {
-          const selectedCount = grid.querySelectorAll(`.${mediaItemClass.replace(/^\.|^#/g, '')}.${selectedClass}`).length;
+          const selectedCount = grid.querySelectorAll(`${mediaItemClass}.${selectedClass}`).length;
           totalSelected += selectedCount;
         });
 
@@ -166,7 +215,7 @@
           const container = grid.closest(groupContainerClass);
           if (container) {
             groupContainer = container;
-            counterWrapper = container.querySelector(`.${counterWrapperClass}`);
+            counterWrapper = container.querySelector(`${counterWrapperClass}`);
             if (counterWrapper) break;
           }
         }
@@ -202,8 +251,8 @@
         }
 
         // Update counter and button state
-        const counter = counterWrapper ? counterWrapper.querySelector(`.${counterClass}`) : null;
-        const saveBtn = counterWrapper ? counterWrapper.querySelector(`.${saveButtonClass}`) : null;
+        const counter = counterWrapper ? counterWrapper.querySelector(`${counterClass}`) : null;
+        const saveBtn = counterWrapper ? counterWrapper.querySelector(`${saveButtonClass}`) : null;
 
         if (counter && saveBtn) {
           // Show wrapper if there are changes or selections

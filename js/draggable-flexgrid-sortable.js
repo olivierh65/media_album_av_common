@@ -11,16 +11,15 @@
       }
       const sortableInstances = [];
       once(
-        "sortable",
-        settings?.dragtool?.sortable?.containers ?? ".js-draggable-flexgrid",
+        "sortable-flexgrid",
+        "." + (settings?.dragtool?.lightTable?.gridContainer ?? "js-draggable-flexgrid"),
         context,
       ).forEach(function (grid) {
         console.log("Initializing Sortable on grid:", grid);
 
         // Get CSS class names from settings with fallback defaults
         const thumbnailClass =
-          settings?.dragtool?.lightTable?.thumbnail ??
-          ".media-light-table-thumbnail";
+          "." + (settings?.dragtool?.lightTable?.thumbnail ?? "media-light-table-thumbnail");
 
         // Get group name from data attribute
         const groupClass = grid.dataset.albumGrp;
@@ -38,7 +37,10 @@
           dataIdAttr: "data-id",
           // Multi-drag support for selected items
           multiDrag: true,
-          selectedClass: "selected",
+          avoidImplicitDeselect: true,
+          selectedClass: settings?.dragtool?.lightTable?.selectedClass ?? "selected",
+          // filter: '.zoom-icon, .media-light-table-name-field, .media-light-table-info-wrapper',
+          // preventOnFilter: false,
           // Called when dragging element changes position
           onChange_: function (/**Event*/ evt) {
             // most likely why this event is used is to get the dragging element's current index
@@ -103,8 +105,7 @@
 
         items.forEach((itemEl) => {
           const thumbnail = itemEl.querySelector(
-            settings?.dragtool?.lightTable?.thumbnail ??
-              ".media-light-table-thumbnail",
+            "." + (settings?.dragtool?.lightTable?.thumbnail ?? "media-light-table-thumbnail"),
           );
           if (!thumbnail) {
             console.warn(
@@ -117,7 +118,7 @@
 
           console.log(
             "Element moved:",
-            itemEl.dataset.id,
+            thumbnail.dataset.mediaId,
             "from termid",
             fromTermId,
             "to termid",
@@ -127,7 +128,7 @@
       }
       /**
        * Retourne l'ordre des médias par conteneur pour un album donné
-       * @param {string} groupName ex: 'album-group-23'
+       * @param {string} groupName ex: '23'
        * @returns {Array} tableau d'objets : { album, containerId, order }
        */
       function getAlbumContainersOrder(groupName) {

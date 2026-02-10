@@ -169,8 +169,18 @@ trait FieldWidgetBuilderTrait {
    *   The widget array.
    */
   protected function buildEntityReferenceWidget($field_config, $field_label, $default_value = NULL) {
-    $target_type = $this->getSetting($field_config, 'target_type');
-    $handler_settings = $this->getSetting($field_config, 'handler_settings', []);
+    // Return a basic autocomplete if field_config is not a valid object
+    if (empty($field_config) || !is_object($field_config)) {
+      return [
+        '#type' => 'entity_autocomplete',
+        '#target_type' => 'taxonomy_term',
+        '#title' => $field_label,
+        '#default_value' => NULL,
+      ];
+    }
+
+    $target_type = $field_config->getSetting('target_type') ?? 'taxonomy_term';
+    $handler_settings = $field_config->getSetting('handler_settings') ?? [];
     $target_bundles = $handler_settings['target_bundles'] ?? [];
 
     // For taxonomy terms, use entity_autocomplete.

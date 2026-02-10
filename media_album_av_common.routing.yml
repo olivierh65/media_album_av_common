@@ -77,3 +77,10 @@ media_album_av_common.grouping_fields_settings:
   requirements:
     _permission: 'administer site configuration'
   parent: 'system.admin_config_media'
+
+media_album_av_common.action_form:
+  path: '/media-album-av-common/action/open-modal/{action_id}/{album_grp}'
+  defaults:
+    _controller: '\Drupal\media_album_av_common\Controller\ActionModalController::open'
+  requirements:
+    _permission: 'access content'

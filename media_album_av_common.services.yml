@@ -23,8 +23,8 @@ services:
       - '@file_system'
       - '@logger.factory'
 
-  media_album_av_common.media_order_controller:
-    class: Drupal\media_album_av_common\Controller\MediaOrderController
+  media_album_av_common.media_order_service:
+    class: Drupal\media_album_av_common\Service\MediaOrderService
     arguments:
       - '@logger.factory'
 

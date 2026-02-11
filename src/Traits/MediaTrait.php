@@ -188,7 +188,7 @@ trait MediaTrait {
    *   The media entity, or NULL if not found.
    */
   public function getReferencedMediaEntity(ResultRow $row) {
-
+    $media = NULL;
     // Vérifier d'abord si le média est dans _relationship_entities.
     if (isset($row->_relationship_entities) && is_array($row->_relationship_entities)) {
       // Chercher le champ de relationship (ex: field_media_album_av_media)
@@ -265,7 +265,9 @@ trait MediaTrait {
    *   An array with full media info.
    */
   public function getMediaRowFullInfo(ResultRow $row) {
-    $entity = $this->getReferencedMediaEntity($row);
+
+    // Try to get the media entity from relationships first, then fallback to _entity.
+    $entity = $this->getReferencedMediaEntity($row) ?? $row->_entity;
 
     // Vérifier que c'est bien une entité media.
     if ($entity->getEntityTypeId() !== 'media') {

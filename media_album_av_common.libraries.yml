@@ -59,13 +59,10 @@ draggable-flexgrid:
   js:
     js/draggable-flexgrid-dragula.js: {}
     js/draggable-flexgrid-sortable.js: {}
-    js/draggable-flexgrid.js: {}
     js/draggable-flexgrid-manage-image.js: {}
-    # js/draggable-flexgrid-fix_vbo_counter.js: {}
     js/draggable-flexgrid-multi-select.js: {}
   css:
     theme:
-      css/draggable-flexgrid.css: {}
       css/draggable-flexgrid-admin.css: {}
       css/draggable-flexgrid-manage-image.css: {}
       css/draggable-flexgrid-sortable.css: {}
@@ -75,82 +72,4 @@ draggable-flexgrid:
     - media_album_av_common/dragula
     - media_album_av_common/sortablejs
 
-draggable-flexgrid-light-table-groups:
-  version: 1.x
-  css:
-    theme:
-      css/draggable-flexgrid-light-table-groups.css: {}
 
-
-# VBO-specific functionality for draggable-flexgrid
-draggable-flexgrid-vbo:
-  version: 1.x
-  js:
-    js/media-light-table-vbo.js: {}
-  dependencies:
-    - core/drupal
-    - core/once
-    - media_album_av_common/draggable-flexgrid
-
-
-media-light-table:
-  version: 1.x
-  css:
-    theme:
-      css/media-light-table.css: {}
-      css/media-light-table-controls.css: {}
-      css/media-album-light-table.css: {}
-      css/media-light-table-groups.css: {}
-  js:
-    js/draggable-flexgrid.js: {}
-    js/media-light-table.js: {}
-    js/media-light-table-filters.js: {}
-    js/media-light-table-more-info.js: {}
-    js/media-light-table-vbo.js: {}
-  dependencies:
-    - core/drupal
-    - core/once
-    - media_album_av_common/dragula
-
-media-light-table-vbo:
-  version: 1.x
-  js:
-    js/media-light-table-vbo.js: {}
-  dependencies:
-    - core/drupal
-    - core/once
-    - media_album_av_common/draggable-flexgrid
-
-media-light-table-modal:
-  version: 1.x
-  css:
-    theme:
-      css/media-light-table-modal.css: {}
-  js:
-    js/media-light-table-modal.js: {}
-  dependencies:
-    - core/drupal
-    - core/once
-
-media-light-table-edit-modal:
-  version: 1.x
-  css:
-    theme:
-      css/media-light-table-edit-modal.css: {}
-  js:
-    js/media-light-table-edit-modal.js: {}
-  dependencies:
-    - core/drupal
-    - core/once
-
-draggable-flexgrid-light-table-selection:
-  version: 1.x
-  css:
-    theme:
-      css/draggable-flexgrid-light-table-selection.css: {}
-  js:
-    js/draggable-flexgrid-light-table-selection.js: {}
-  dependencies:
-    - core/drupal
-    - core/once
-    - media_album_av_common/draggable-flexgrid

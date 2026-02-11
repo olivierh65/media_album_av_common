@@ -218,7 +218,7 @@ class MediaViewRendererService {
 
       // Attacher les bibliothèques.
       $build['#attached']['library'][] = 'media_album_av_common/dragula';
-      $build['#attached']['library'][] = 'media_album_av_common/media-light-table';
+      $build['#attached']['library'][] = 'media_album_light_table_style/media-light-table';
       $build['#attached']['library'][] = 'core/drupal.dialog.ajax';
 
       // Bibliothèques supplémentaires.

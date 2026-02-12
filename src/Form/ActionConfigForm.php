@@ -102,31 +102,33 @@ class ActionConfigForm extends FormBase {
 
     $user_id = (string) \Drupal::currentUser()->id();
 
-    // Activer le cache du form_state pour persister entre AJAX.
-    $form_state->setCached(TRUE);
+    // Cache le formulaire uniquement si c'est une requête POST.
+    if (\Drupal::request()->isMethod('POST')) {
+      $form_state->setCached(TRUE);
+    }
+    // Forcer le rebuild à chaque fois pour s'assurer que les données sont persistées.
+    $form_state->setRebuild(TRUE);
 
     // Récupérer les paramètres additionnels depuis l'état du formulaire.
     $build_info = $form_state->getBuildInfo();
 
-    // Premier chargement : récupérer depuis les args.
-    if (!$form_state->has('action_data')) {
-      $action_id = $build_info['args'][0] ?? NULL;
-      $album_grp = $build_info['args'][1] ?? NULL;
-      $prepared_data = $build_info['args'][2] ?? [];
+    $user_input = $form_state->getUserInput();
 
-      // Stocker dans le form_state pour persistance.
-      $form_state->set('action_id', $action_id);
-      $form_state->set('album_grp', $album_grp);
-      $form_state->set('prepared_data', $prepared_data);
-      // Flag pour savoir qu'on a initialisé.
-      $form_state->set('action_data', TRUE);
+    // Premier chargement : récupérer depuis les args.
+    if (!$user_input['action_data_flag']) {
+      $user_input['action_id'] = $build_info['args'][0] ?? NULL;
+      $user_input['album_grp'] = $build_info['args'][1] ?? NULL;
+      $user_input['prepared_data'] = json_encode($build_info['args'][2] ?? []);
+      // Juste un flag pour indiquer que les données sont initialisées.
+      $user_input['action_data_flag'] = 1;
+
+      $form_state->setUserInput($user_input);
     }
-    else {
-      // Rechargements AJAX : récupérer depuis form_state.
-      $action_id = $form_state->get('action_id');
-      $album_grp = $form_state->get('album_grp');
-      $prepared_data = $form_state->get('prepared_data');
-    }
+    // Rechargements AJAX : récupérer depuis form_state.
+    $action_id = $user_input['action_id'] ?? NULL;
+    $album_grp = $user_input['album_grp'] ?? NULL;
+    $prepared_data = json_decode($user_input['prepared_data'], TRUE) ?? [];
+    $action_data_flag = $user_input['action_data_flag'] ?? NULL;
 
     // Extraire les media_id depuis les données préparées.
     $media_ids = array_map(function ($item) {
@@ -159,6 +161,24 @@ class ActionConfigForm extends FormBase {
     }
 
     $form['#tree'] = TRUE;
+
+    $form['action_id'] = [
+      '#type' => 'hidden',
+      '#value' => $action_id,
+    ];
+    $form['album_grp'] = [
+      '#type' => 'hidden',
+      '#value' => $album_grp,
+    ];
+    $form['prepared_data'] = [
+      '#type' => 'hidden',
+      '#value' => is_array($prepared_data) ? json_encode($prepared_data) : $prepared_data,
+    ];
+    $form['action_data_flag'] = [
+      '#type' => 'hidden',
+    // Just a flag to indicate data is initialized.
+      '#value' => $action_data_flag,
+    ];
 
     // Step 1: Select an Album and Directory.
     $form['step_1'] = [
@@ -279,6 +299,12 @@ class ActionConfigForm extends FormBase {
           ':input[name="step_1[album_id]"]' => ['value' => ''],
         ],
       ],
+      '#attributes' => [
+        'class' => ['media-album-action-submit', 'button', 'js-form-submit', 'form-submit'],
+        'data-album-grp' => $album_grp,
+        'data-unique-key' => 'submit_action_' . $album_grp,
+        'data-prepare-function' => 'prepareActionData',
+      ],
       '#ajax' => [
         'callback' => '::submitFormAjax',
         'event' => 'click',
@@ -378,8 +404,8 @@ class ActionConfigForm extends FormBase {
    */
   public function validateForm(array &$form, FormStateInterface $form_state) {
     // Votre validation.
-    if (empty($form_state->getValue('action_data'))) {
-      $form_state->setErrorByName('action_data', $this->t('Action data is required.'));
+    if (empty($form_state->getValue('action_data_flag'))) {
+      $form_state->setErrorByName('action_data_flag', $this->t('Action data is required.'));
     }
   }
 

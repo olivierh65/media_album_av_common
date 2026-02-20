@@ -2,8 +2,6 @@
 
 namespace Drupal\media_album_av_common\Traits;
 
-use Drupal\Core\Url;
-
 /**
  * Trait for building field widgets for forms.
  *
@@ -27,11 +25,11 @@ trait FieldWidgetBuilderTrait {
    * @return array
    *   Form element for the field.
    */
-  protected function buildFieldWidget($field_config, $default_value = NULL, array $additional_options = []) {
+  protected function buildFieldWidget($field_config, int|null $default_value = NULL, array $additional_options = []) {
     $field_type = $this->getFieldType($field_config);
     $field_label = $this->getFieldLabel($field_config);
 
-    $widget = $this->createBaseWidget($field_type, $field_label, $default_value);
+    $widget = $this->createBaseWidget($field_config, $field_type, $field_label, $default_value);
 
     // Apply additional options if provided.
     if (!empty($additional_options)) {
@@ -92,7 +90,7 @@ trait FieldWidgetBuilderTrait {
    * @return array
    *   The base widget array.
    */
-  protected function createBaseWidget($field_type, $field_label, $default_value = NULL) {
+  protected function createBaseWidget($field_config, $field_type, $field_label, $default_value = NULL) {
     switch ($field_type) {
       case 'string':
         return [
@@ -169,7 +167,7 @@ trait FieldWidgetBuilderTrait {
    *   The widget array.
    */
   protected function buildEntityReferenceWidget($field_config, $field_label, $default_value = NULL) {
-    // Return a basic autocomplete if field_config is not a valid object
+    // Return a basic autocomplete if field_config is not a valid object.
     if (empty($field_config) || !is_object($field_config)) {
       return [
         '#type' => 'entity_autocomplete',
@@ -192,8 +190,8 @@ trait FieldWidgetBuilderTrait {
         '#selection_settings' => [
           'target_bundles' => $target_bundles,
         ],
-        '#default_value' => $default_value && isset($default_value[0]['target_id']) ?
-          $this->getEntityTypeManager()->getStorage($target_type)->load($default_value[0]['target_id']) : NULL,
+        '#default_value' => $default_value ?
+        $this->getEntityTypeManager()->getStorage($target_type)->load($default_value) : NULL,
       ];
     }
 
@@ -205,8 +203,8 @@ trait FieldWidgetBuilderTrait {
       '#selection_settings' => [
         'target_bundles' => $target_bundles,
       ],
-      '#default_value' => $default_value && isset($default_value[0]['target_id']) ?
-        $this->getEntityTypeManager()->getStorage($target_type)->load($default_value[0]['target_id']) : NULL,
+      '#default_value' => $default_value ?
+      $this->getEntityTypeManager()->getStorage($target_type)->load($default_value) : NULL,
     ];
   }
 

@@ -12,13 +12,17 @@ use Drupal\media_album_av_common\Traits\FieldWidgetBuilderTrait;
 use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\CloseModalDialogCommand;
 use Drupal\Core\Ajax\ReplaceCommand;
+use Drupal\Core\Ajax\MessageCommand;
 use Drupal\Core\Ajax\InvokeCommand;
+use Drupal\Core\Action\ActionManager;
+use Drupal\media_album_av_common\Traits\TaxonomyTrait;
 
 /**
  * Form for configuring media album actions.
  */
 class ActionConfigForm extends FormBase {
   use FieldWidgetBuilderTrait;
+  use TaxonomyTrait;
   /**
    * The entity type manager.
    *
@@ -61,6 +65,12 @@ class ActionConfigForm extends FormBase {
    */
   protected $usedDirectoriesCache = [];
 
+  /**
+   * The action plugin manager.
+   *
+   * @var \Drupal\Core\Action\ActionManager
+   */
+  protected $actionPluginManager;
 
   /**
    * Is media must be moved to another directory.
@@ -72,8 +82,9 @@ class ActionConfigForm extends FormBase {
   /**
    * Constructs an ActionConfigForm object.
    */
-  public function __construct(EntityTypeManagerInterface $entity_type_manager, DirectoryService $taxonomy_service) {
+  public function __construct(EntityTypeManagerInterface $entity_type_manager, ActionManager $action_plugin_manager, DirectoryService $taxonomy_service) {
     $this->entityTypeManager = $entity_type_manager;
+    $this->actionPluginManager = $action_plugin_manager;
     $this->taxonomyService = $taxonomy_service;
     $this->selectedMedia = [];
   }
@@ -84,6 +95,7 @@ class ActionConfigForm extends FormBase {
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('entity_type.manager'),
+      $container->get('plugin.manager.action'),
       $container->get('media_drop.taxonomy_service')
     );
   }
@@ -106,8 +118,17 @@ class ActionConfigForm extends FormBase {
     if (\Drupal::request()->isMethod('POST')) {
       $form_state->setCached(TRUE);
     }
-    // Forcer le rebuild à chaque fois pour s'assurer que les données sont persistées.
-    $form_state->setRebuild(TRUE);
+
+    // Vérifier si on est dans un callback AJAX en regardant l'élément trigger.
+    // Si l'élément trigger a un callback AJAX défini (#ajax), ne pas rebuilder
+    // pour laisser le callback AJAX s'exécuter.
+    $trigger = $form_state->getTriggeringElement();
+    $is_ajax_callback = $trigger && isset($trigger['#ajax']['callback']);
+
+    // Rebuilder sauf si c'est un callback AJAX en cours.
+    if (!$is_ajax_callback) {
+      $form_state->setRebuild(TRUE);
+    }
 
     // Récupérer les paramètres additionnels depuis l'état du formulaire.
     $build_info = $form_state->getBuildInfo();
@@ -130,6 +151,10 @@ class ActionConfigForm extends FormBase {
     $prepared_data = json_decode($user_input['prepared_data'], TRUE) ?? [];
     $action_data_flag = $user_input['action_data_flag'] ?? NULL;
 
+    $action_manager = \Drupal::service('plugin.manager.action');
+    /** @var \Drupal\Core\Action\ConfigurableActionInterface $action */
+    $action = $action_manager->createInstance($action_id);
+
     // Extraire les media_id depuis les données préparées.
     $media_ids = array_map(function ($item) {
       return $item['media_id'] ?? NULL;
@@ -141,13 +166,14 @@ class ActionConfigForm extends FormBase {
     if (!empty($media_ids)) {
       // Load the LATEST revision of each media to get current field values.
       $media_storage = \Drupal::entityTypeManager()->getStorage('media');
-      $this->mediaEntities = [];
+      $mediaEntities = [];
       foreach ($media_ids as $media_id) {
         $latest_revision_id = $media_storage->getLatestRevisionId($media_id);
         if ($latest_revision_id) {
-          $this->mediaEntities[$media_id] = $media_storage->loadRevision($latest_revision_id);
+          $mediaEntities[$media_id] = $media_storage->loadRevision($latest_revision_id);
         }
       }
+      $action->setMediaEntities($mediaEntities);
     }
     else {
       // No media IDs provided - return early with a message.
@@ -160,105 +186,8 @@ class ActionConfigForm extends FormBase {
       return $form;
     }
 
-    $form['#tree'] = TRUE;
-
-    $form['action_id'] = [
-      '#type' => 'hidden',
-      '#value' => $action_id,
-    ];
-    $form['album_grp'] = [
-      '#type' => 'hidden',
-      '#value' => $album_grp,
-    ];
-    $form['prepared_data'] = [
-      '#type' => 'hidden',
-      '#value' => is_array($prepared_data) ? json_encode($prepared_data) : $prepared_data,
-    ];
-    $form['action_data_flag'] = [
-      '#type' => 'hidden',
-    // Just a flag to indicate data is initialized.
-      '#value' => $action_data_flag,
-    ];
-
-    // Step 1: Select an Album and Directory.
-    $form['step_1'] = [
-      '#type' => 'details',
-      '#title' => $this->t('Step 1: Select an Album and Directory'),
-      '#open' => TRUE,
-      '#tree' => TRUE,
-    ];
-
-    $form['step_1']['info'] = [
-      '#markup' => '<div class="messages messages--status">' .
-      $this->t('Selected media: <strong>@count</strong>', ['@count' => count($this->mediaEntities)]) .
-      '</div>',
-    ];
-
-    // Album selection.
-    $album_bundles = [];
-    $album_options = $this->getAvailableAlbums($album_bundles);
-
-    $form['step_1']['album_id'] = [
-      '#type' => 'select',
-      '#title' => $this->t('Select Album'),
-      '#description' => $this->t('Select an existing album (node) with media fields to add the selected media to.'),
-      '#options' => $album_options,
-      '#required' => TRUE,
-      '#default_value' => '',
-      '#disabled' => FALSE,
-      '#parents' => ['step_1', 'album_id'],
-      '#empty_option' => $this->t('- Select an album -'),
-      '#ajax' => [
-        'callback' => [$this, 'ajaxUpdateAlbumFields'],
-        'wrapper' => 'album-fields-wrapper',
-        'event' => 'change',
-      ],
-    ];
-
-    $form['step_1']['order'] = [
-      '#type' => 'hidden',
-      '#value' => [1, 2, 3],
-      '#attributes' => [
-        'class' => ['media-drop-order-step1'],
-      ],
-    ];
-
-    // Wrapper for AJAX updates.
-    $form['step_2_wrapper'] = [
-      '#type' => 'container',
-      '#tree' => TRUE,
-      '#attributes' => ['id' => 'album-fields-wrapper'],
-    ];
-
-    $form['step_2_wrapper']['order'] = [
-      '#type' => 'hidden',
-      '#value' => [11, 22, 33],
-      '#attributes' => [
-        'class' => ['media-drop-order'],
-      ],
-    ];
-
-    // Directory selection has been moved to Step 2.
-    // Step 2: Configure Album Fields.
-    if ($form_state->getValue(['step_1', 'album_id'])) {
-      $album_id = $form_state->getValue(['step_1', 'album_id']);
-      $this->albumNode = $this->entityTypeManager->getStorage('node')->load($album_id);
-
-      if ($this->albumNode) {
-        // Build step_2 inside wrapper.
-        $form['step_2_wrapper']['step_2'] = $this->buildAlbumConfigurationForm([]);
-      }
-    }
-    else {
-      // Return hidden step_2 if no album selected.
-      $form['step_2_wrapper']['step_2'] = [
-        '#type' => 'details',
-        '#title' => $this->t('Step 2: Configure Album Fields'),
-        '#open' => TRUE,
-        '#tree' => TRUE,
-        '#access' => FALSE,
-      ];
-    }
+    // Ajouter les éléments de formulaire propres à l'action.
+    $form = $action->buildConfigurationForm($form, $form_state);
 
     // Attach autocomplete libraries to the main form.
     $form['#attached'] = [
@@ -271,11 +200,6 @@ class ActionConfigForm extends FormBase {
     // Forcer l'attachement des behaviors AJAX dans la modal.
     $form['#attached']['library'][] = 'core/drupal.ajax';
     $form['#attached']['drupalSettings']['behaviors']['ajaxForm'] = TRUE;
-
-    $form['action_data'] = [
-      '#type' => 'textarea',
-      '#title' => $this->t('Action parameters'),
-    ];
 
     // Wrapper pour les messages.
     $form['messages'] = [
@@ -301,9 +225,9 @@ class ActionConfigForm extends FormBase {
       ],
       '#attributes' => [
         'class' => ['media-album-action-submit', 'button', 'js-form-submit', 'form-submit'],
-        'data-album-grp' => $album_grp,
+        /* 'data-album-grp' => $album_grp,
         'data-unique-key' => 'submit_action_' . $album_grp,
-        'data-prepare-function' => 'prepareActionData',
+        'data-prepare-function' => 'prepareActionData', */
       ],
       '#ajax' => [
         'callback' => '::submitFormAjax',
@@ -348,8 +272,8 @@ class ActionConfigForm extends FormBase {
    * Callback Ajax pour le bouton OK/Submit.
    */
   public function submitFormAjax(array &$form, FormStateInterface $form_state) {
-    $response = new AjaxResponse();
 
+    $response = new AjaxResponse();
     // Vérifier les erreurs de validation.
     if ($form_state->hasAnyErrors()) {
       // Afficher les erreurs dans la modale.
@@ -365,24 +289,24 @@ class ActionConfigForm extends FormBase {
       $album_grp = $form_state->getBuildInfo()['args'][1] ?? NULL;
 
       // Votre logique métier ici.
-      $result = $this->executeAction($action_id, $form_state->getValues());
+      $return = $this->executeAction($action_id, $form_state->getValues());
 
-      if ($result['success']) {
-        // Afficher un message de succès.
-        $this->messenger()->addStatus($this->t('Action executed successfully.'));
-
-        // Optionnel : rafraîchir une partie de la page parente
-        // $response->addCommand(new ReplaceCommand('#group-action-wrapper-' . $album_grp, $updated_content));.
-        // Ou déclencher un événement custom pour rafraîchir la table.
-        $response->addCommand(new InvokeCommand(NULL, 'triggerActionComplete', [$album_grp, $action_id]));
-
-        // Fermer la modale.
-        $response->addCommand(new CloseModalDialogCommand());
+      if ($return) {
+        foreach ($return['response'] as $command) {
+          $response->addCommand($command);
+        }
+        if ($return['status'] !== 'error') {
+          $response->addCommand(new CloseModalDialogCommand());
+          $response->addCommand(new InvokeCommand('document', 'trigger', [
+            'mediaAlbumActionComplete',
+          [$album_grp, $action_id],
+          ]));
+        }
 
       }
       else {
         // Afficher l'erreur dans la modale.
-        $this->messenger()->addError($result['message']);
+        $this->messenger()->addError($this->t('Action execution failed. Please try again.'));
         $response->addCommand(new ReplaceCommand('#modal-messages', [
           '#type' => 'status_messages',
         ]));
@@ -420,90 +344,136 @@ class ActionConfigForm extends FormBase {
   /**
    * Exécute l'action demandée.
    */
-  protected function executeAction($action_id, $values) {
+  protected function executeAction($action_id, $values) : array {
+
+    $response = [];
+    $action_manager = \Drupal::service('plugin.manager.action');
+    /** @var \Drupal\Core\Action\ConfigurableActionInterface $action */
+    $action = $action_manager->createInstance($action_id);
     // Votre logique métier.
-    return [
-      'success' => TRUE,
-      'message' => $this->t('Action completed.'),
-    ];
-  }
+    switch ($action_id) {
+      case 'add_to_album':
+        // Logique pour ajouter les médias à l'album.
+        break;
 
-  /**
-   * AJAX callback to update album fields when album selection changes.
-   *
-   * @param array $form
-   *   The form array.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   *
-   * @return array
-   *   The updated step_2 form element.
-   */
-  public function ajaxUpdateAlbumFields(array $form, FormStateInterface $form_state) {
-    // Force form rebuild so Drupal recalculates all form values.
-    $form_state->setRebuild(TRUE);
+      case 'media_drop_move_to_album':
+        // 1️⃣ Récupération album
+        $album_id = $values['step_1']['album_id'] ?? NULL;
 
-    // Return the wrapper (which contains step_2).
-    return $form['step_2_wrapper'];
-  }
+        if (!$album_id) {
+          $response['response'][] = new MessageCommand(
+          $this->t('No album selected. Please select an album.'), NULL,
+          ['type' => 'error']
+          );
+          $response['status'] = 'error';
+          return $response;
+        }
 
-  /**
-   * Get available albums for select widget.
-   *
-   * @param array $bundles
-   *   Array of node bundle machine names (unused, kept for signature).
-   *
-   * @return array
-   *   Array of node IDs keyed by node title.
-   */
-  protected function getAvailableAlbums(array $bundles) {
-    $options = [];
+        $album_node = $this->entityTypeManager
+          ->getStorage('node')
+          ->load($album_id);
 
-    try {
-      // Get media bundles from selected media entities.
-      $media_bundles = $this->getSelectedMediaBundles();
+        if (!$album_node) {
+          $response['response'][] = new MessageCommand(
+          $this->t('Album node not found.'), NULL,
+          ['type' => 'error']
+          );
+          $response['status'] = 'error';
+          return $response;
+        }
 
-      if (empty($media_bundles)) {
-        return $options;
-      }
+        // 2️⃣ Config module
+        $config = \Drupal::config('media_album_av.settings');
 
-      // Get compatible node bundles for these media bundles.
-      $node_bundles = $this->getNodeBundlesForMedia($media_bundles);
+        $event_group_field = $config->get('event_group_field');
+        $event_field = $config->get('event_field');
 
-      if (empty($node_bundles)) {
-        return $options;
-      }
+        $album_fields = [
+          'event_group' => NULL,
+          'event' => NULL,
+          'storage_location' => $config->get('prefered_storage_location'),
+          'media_directory' => $config->get('prefered_media_directory'),
+        ];
 
-      // Load all nodes (published and unpublished) from compatible bundles.
-      $query = $this->entityTypeManager->getStorage('node')->getQuery()
-        ->condition('type', array_keys($node_bundles), 'IN')
-        ->sort('title', 'ASC')
-        ->accessCheck(FALSE);
+        if ($event_group_field && $album_node->hasField($event_group_field)) {
+          $album_fields['event_group'] =
+          $album_node->get($event_group_field)->target_id;
+        }
 
-      $nids = $query->execute();
+        if ($event_field && $album_node->hasField($event_field)) {
+          $album_fields['event'] =
+          $album_node->get($event_field)->target_id;
+        }
 
-      if (empty($nids)) {
-        return $options;
-      }
+        $prefered_directory_field = $this->getTaxonomyReferenceFields($album_node->bundle(), $album_fields['media_directory']);
+        if ($prefered_directory_field && $album_node->hasField($prefered_directory_field[0])) {
+          $album_fields['prefered_directory'] =
+          $album_node->get($prefered_directory_field[0])->target_id;
+        }
 
-      $nodes = $this->entityTypeManager->getStorage('node')->loadMultiple($nids);
+        // 3️⃣ Récupération médias
+        $data = json_decode($values['prepared_data'], TRUE);
 
-      foreach ($nodes as $node) {
-        $status = $node->isPublished() ? '' : ' ' . $this->t('[Draft]');
-        $options[$node->id()] = $node->getTitle() . $status;
-      }
+        if (empty($data['selected_items'])) {
+          $response['response'][] = new MessageCommand(
+          $this->t('No data to process.'), NULL,
+          ['type' => 'warning']
+          );
+          $response['status'] = 'warning';
+          return $response;
+        }
+
+        $entities = [];
+
+        foreach ($data['selected_items'] as $item) {
+          if (!empty($item['media_id'])) {
+            $media = $this->entityTypeManager
+              ->getStorage('media')
+              ->load($item['media_id']);
+
+            if ($media) {
+              $entities[] = $media;
+            }
+          }
+        }
+
+        if (empty($entities)) {
+          $response['response'][] = new MessageCommand(
+          $this->t('No valid media found to process.'), NULL,
+          ['type' => 'warning']
+          );
+          $response['status'] = 'warning';
+          return $response;
+        }
+
+        // 4️⃣ Instanciation propre du plugin AVEC config
+        $action = $action_manager->createInstance($action_id, [
+          'album_grp' => $values['album_grp'] ?? NULL,
+          'album_id' => $album_id ?? NULL,
+          'directory_tid' => $values['step_2_wrapper']['step_2']['directory_tid'] ?? NULL,
+          'album_fields' => $album_fields,
+          'move' => TRUE,
+          'event_id' => $album_fields['event'],
+          'event_group_id' => $album_fields['event_group'],
+          'prefered_storage_location' => $album_fields['storage_location'],
+          'prefered_media_directory' => $album_fields['prefered_directory'],
+        ]);
+
+        // 5️⃣ Exécution
+        $result = $action->executeMultiple([
+          'album_id' => $album_id,
+          'entities' => $entities,
+        ]);
+
+        return $result;
+
+      break;
+
+      default:
+        $response['status'] = 'error';
+        $response['response'][] = new MessageCommand($this->t('Unknown action.'), NULL, ['type' => 'error']);
     }
-    catch (\Exception $e) {
-      // Log error but don't crash.
-      \Drupal::logger('media_drop')->warning(
-      'Error loading album options: @message',
-      [
-        '@message' => $e->getMessage(),
-      ]
-      );
-    }
-
-    return $options;
+    return $response;
   }
 
   /**
@@ -1612,190 +1582,6 @@ class ActionConfigForm extends FormBase {
     }
 
     return $grouped_fields;
-  }
-
-  /**
-   * Build the album configuration form section.
-   *
-   * @param array $wrapper
-   *   Unused, kept for compatibility.
-   *
-   * @return array
-   *   The step_2 element ready to add to main form.
-   */
-  protected function buildAlbumConfigurationForm(array $wrapper) {
-    if (!$this->albumNode) {
-      return [
-        '#type' => 'container',
-        '#access' => FALSE,
-        '#tree' => TRUE,
-        '#weight' => 10,
-      ];
-    }
-
-    /*  $step_2 = [
-    '#type' => 'details',
-    '#title' => $this->t('Step 2: Configure album Fields'),
-    '#open' => TRUE,
-    '#tree' => TRUE,
-    '#attributes' => ['id' => 'album-fields-wrapper'],
-    '#access' => TRUE,
-    ]; */
-
-    // Initialize step_2 array.
-    $step_2 = [];
-
-    $step_2['info'] = [
-      '#markup' => '<div class="messages messages--status">' .
-      $this->t('Album: <strong>@album_title</strong>', ['@album_title' => $this->albumNode->label()]) .
-      '</div>',
-    ];
-
-    // Hidden input to signal that step_2 is fully rendered (for form states).
-    // This input only exists when step_2 is created, so form states can use it to detect
-    // when step_2 is ready.
-    $step_2['step_2_ready_marker'] = [
-      '#type' => 'hidden',
-      '#value' => '1',
-    ];
-
-    // Show existing media in album and which ones will be added.
-    $existing_media = $this->getMediaIdsInAlbum($this->albumNode);
-    $new_media_count = 0;
-    $duplicate_count = 0;
-    $new_media_list = '';
-    $duplicate_list = '';
-
-    foreach ($this->mediaEntities as $media_id => $media) {
-      if (isset($existing_media[$media_id])) {
-        $duplicate_count++;
-        $duplicate_list .= '<li>' . $media->label() . ' (ID: ' . $media_id . ')</li>';
-      }
-      else {
-        $new_media_count++;
-        $new_media_list .= '<li>' . $media->label() . ' (ID: ' . $media_id . ')</li>';
-      }
-    }
-
-    // Show summary of media processing status.
-    $not_processed_count = $duplicate_count + count($this->getIncompatibleMedia($this->albumNode));
-    if ($not_processed_count > 0) {
-      $step_2['summary_warning'] = [
-        '#markup' => '<div class="messages messages--warning">' .
-        $this->t('<strong>⚠️ @count media will NOT be processed</strong> (expand the sections below to see details)', ['@count' => $not_processed_count]) .
-        '</div>',
-      ];
-    }
-
-    // Show media already in album (in collapsible details).
-    if (!empty($existing_media)) {
-      $existing_list = '';
-      foreach ($existing_media as $media_id => $label) {
-        $existing_list .= '<li>' . $label . ' (ID: ' . $media_id . ')</li>';
-      }
-      $step_2['existing_media'] = [
-        '#type' => 'details',
-        '#title' => $this->t('Media already in album (@count)', ['@count' => count($existing_media)]),
-        '#open' => FALSE,
-        '#markup' => '<ul>' . $existing_list . '</ul>',
-      ];
-    }
-
-    // Show duplicates (media already in album that were selected).
-    if ($duplicate_count > 0) {
-      $step_2['duplicates'] = [
-        '#type' => 'details',
-        '#title' => $this->t('Selected media already in album - will be skipped (@count)', ['@count' => $duplicate_count]),
-        '#open' => FALSE,
-        '#markup' => '<ul>' . $duplicate_list . '</ul>',
-      ];
-    }
-
-    // Show media that will be added (in collapsible details).
-    if ($new_media_count > 0) {
-      $step_2['new_media'] = [
-        '#type' => 'details',
-        '#title' => $this->t('✓ Media to be added to the album (@count)', ['@count' => $new_media_count]),
-        '#open' => TRUE,
-        '#markup' => '<ul>' . $new_media_list . '</ul>',
-      ];
-    }
-
-    // Show media compatibility info (in collapsible details).
-    $incompatible_media = $this->getIncompatibleMedia($this->albumNode);
-    if (!empty($incompatible_media)) {
-      $incompatible_list = '';
-      foreach ($incompatible_media as $media) {
-        $incompatible_list .= '<li>' . $media->label() . ' (' . $media->bundle() . ')</li>';
-      }
-      $step_2['incompatible_warning'] = [
-        '#type' => 'details',
-        '#title' => $this->t('Incompatible media - will NOT be imported (@count)', ['@count' => count($incompatible_media)]),
-        '#open' => FALSE,
-        '#markup' => '<ul>' . $incompatible_list . '</ul>',
-      ];
-    }
-
-    if ($this->move) {
-      // Directory selection (if media_directories is enabled).
-      if (\Drupal::moduleHandler()->moduleExists('media_directories')) {
-        $directory_element = $this->buildDirectorySelector();
-        if ($directory_element) {
-          $step_2['directory_tid'] = $directory_element;
-        }
-      }
-    }
-    // Show album editable fields - grouped by designation.
-    $grouped_album_fields = $this->getAlbumEditableFieldsGrouped($this->albumNode);
-
-    if (!empty($grouped_album_fields)) {
-      $step_2['album_fields'] = [
-        '#type' => 'details',
-        '#title' => $this->t('Media Type Fields (from Media Field)'),
-        '#open' => TRUE,
-        '#tree' => TRUE,
-      ];
-
-      foreach ($grouped_album_fields as $designation_key => $field_group) {
-        $field_config = $field_group['field_config'];
-        $field_label = $field_group['designation'];
-        $field_names = $field_group['field_names'];
-
-        $step_2['album_fields'][$designation_key] = [
-          '#type' => 'details',
-          '#title' => $field_label,
-          '#open' => FALSE,
-        ];
-
-        if (($this->albumNode->hasField($field_group['field_names'][0])) &&
-        (!empty($this->albumNode->get($field_group['field_names'][0])->first()))) {
-          $default_from_node[0]['target_id'] = $this->albumNode->get($field_group['field_names'][0])->first()->get('target_id')->getValue();
-        }
-        else {
-          $default_from_node = NULL;
-        }
-        $default_value = $this->configuration['album_field_values'][$designation_key] ??
-          $default_from_node ?? NULL;
-
-        $step_2['album_fields'][$designation_key]['value'] = $this->buildFieldWidget(
-        $field_config,
-        $default_value
-        );
-
-        // Store the field names that belong to this designation for later processing.
-        $step_2['album_fields'][$designation_key]['field_names'] = [
-          '#type' => 'value',
-          '#value' => $field_names,
-        ];
-
-        $field_names_display = implode(', ', $field_names);
-        $step_2['album_fields'][$designation_key]['description'] = [
-          '#markup' => '<p><em>' . $this->t('This value will be applied to all selected media (fields: @fields).', ['@fields' => $field_names_display]) . '</em></p>',
-        ];
-      }
-    }
-
-    return $step_2;
   }
 
 }

@@ -84,3 +84,4 @@ media_album_av_common.action_form:
     _controller: '\Drupal\media_album_av_common\Controller\ActionModalController::open'
   requirements:
     _permission: 'access content'
+  methods: [POST, GET]

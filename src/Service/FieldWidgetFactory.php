@@ -197,8 +197,8 @@ class FieldWidgetFactory {
       ],
     ];
 
-    if ($default_value && isset($default_value[0]['target_id'])) {
-      $entity = $this->entityTypeManager->getStorage($target_type)->load($default_value[0]['target_id']);
+    if ($default_value) {
+      $entity = $this->entityTypeManager->getStorage($target_type)->load($default_value);
       $widget['#default_value'] = $entity;
     }
 

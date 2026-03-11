@@ -16,6 +16,7 @@ use Drupal\Core\Ajax\MessageCommand;
 use Drupal\Core\Ajax\InvokeCommand;
 use Drupal\Core\Action\ActionManager;
 use Drupal\media_album_av_common\Traits\TaxonomyTrait;
+use Drupal\Core\Ajax\SettingsCommand;
 
 /**
  * Form for configuring media album actions.
@@ -297,6 +298,22 @@ class ActionConfigForm extends FormBase {
         }
         if ($return['status'] !== 'error') {
           $response->addCommand(new CloseModalDialogCommand());
+          // Passer les données au JS.
+          $response->addCommand(new SettingsCommand([
+            'mediaAction' => [
+              'albumGrp' => $album_grp,
+              'result' => [
+                'success' => TRUE,
+                'moved_ids' => $return['moved_ids'] ?? [],
+              ],
+            ],
+          ], TRUE));
+          // déclencher l'événement sur le bouton execute du groupe.
+          $response->addCommand(new InvokeCommand(
+          '.media-light-table-execute-action[data-album-grp="' . $album_grp . '"]',
+          'trigger',
+          ['actionAjaxResponse']
+          ));
           $response->addCommand(new InvokeCommand('document', 'trigger', [
             'mediaAlbumActionComplete',
           [$album_grp, $action_id],

@@ -995,7 +995,7 @@ display:
           value:
             media_album_av: media_album_av
       style:
-        type: media_album_light_table_2
+        type: media_album_light_table
         options:
           grouping:
             -
@@ -1010,28 +1010,37 @@ display:
               field: field_media_album_av_category
               rendered: false
               rendered_strip: true
+          sorter: sortable
           columns: '6'
-          gap: 20px
+          gap: 10px
           image_thumbnail_style: medium
           justify: flex-start
           align: stretch
           responsive: 1
+          use_actions: 1
           field_mapping:
             thumbnail:
               enabled: 1
-            vbo:
-              enabled: 0
-              field: ''
             name:
               enabled: 1
               field: name
             details:
               enabled: 1
-            action:
-              enabled: 1
-              field: ''
             preview:
               enabled: 1
+          css_selectors:
+            container: light-table-content
+            gridContainer: media-light-table-album-container
+            mediaItem: media-light-table-media-item
+            zoomTrigger: media-light-table-zoom-trigger
+            dragHandle: media-light-table-drag-icon
+            menuHandle: draggable-flexgrid__menu-handle
+            selectedClass: selected
+            groupContainer: media-light-table-group
+            counterWrapper: media-light-table-group-counter-wrapper
+            counter: media-light-table-group-selection-counter
+            saveButton: media-light-table-save-button
+            thumbnail: media-light-table-thumbnail
       row:
         type: fields
         options:

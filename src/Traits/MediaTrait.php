@@ -331,7 +331,14 @@ trait MediaTrait {
     // Tous les champs textuels disponibles.
     foreach ($entity->getFields() as $field_name => $field) {
       if ($field->getFieldDefinition()->getType() === 'string' || $field->getFieldDefinition()->getType() === 'text_long') {
-        $info['fields'][$field_name] = $entity->get($field_name)->value;
+        try {
+          $array_name = (string) $field->getDataDefinition()->getLabel();
+        }
+        catch (\Exception $e) {
+          $array_name = $field_name;
+        }
+
+        $info['fields'][$array_name] = $entity->get($field_name)->value;
       }
       if ($field->getFieldDefinition()->getType() === 'entity_reference' && $field->getFieldDefinition()->getSetting('target_type') === 'taxonomy_term') {
         $terms = [];

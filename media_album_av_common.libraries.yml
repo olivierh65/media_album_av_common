@@ -69,7 +69,5 @@ draggable-flexgrid:
   dependencies:
     - core/drupal
     - core/once
-    - media_album_av_common/dragula
-    - media_album_av_common/Sortable/Sortable.js
 
 

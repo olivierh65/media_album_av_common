@@ -33,20 +33,13 @@ trait AlbumTrait {
     // 2️⃣ Config module
     $config = \Drupal::config('media_album_av.settings');
 
-    $event_group_field = $config->get('event_group_field');
     $event_field = $config->get('event_field');
 
     $album_fields = [
-      'album_event_group_tid' => NULL,
       'album_event_tid' => NULL,
       'default_storage_location' => $config->get('prefered_storage_location'),
       'default_media_directory' => $config->get('prefered_media_directory'),
     ];
-
-    if ($event_group_field && $album_node->hasField($event_group_field)) {
-      $album_fields['album_event_group_tid'] =
-          $album_node->get($event_group_field)->target_id;
-    }
 
     if ($event_field && $album_node->hasField($event_field)) {
       $album_fields['album_event_tid'] =

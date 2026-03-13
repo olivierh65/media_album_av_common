@@ -284,7 +284,7 @@ class ActionConfigForm extends FormBase {
       return $response;
     }
 
-    // Exécuter votre action.
+    // Exécuter l'action.
     try {
       $action_id = $form_state->getBuildInfo()['args'][0] ?? NULL;
       $album_grp = $form_state->getBuildInfo()['args'][1] ?? NULL;
@@ -402,20 +402,13 @@ class ActionConfigForm extends FormBase {
         // 2️⃣ Config module
         $config = \Drupal::config('media_album_av.settings');
 
-        $event_group_field = $config->get('event_group_field');
         $event_field = $config->get('event_field');
 
         $album_fields = [
-          'event_group' => NULL,
           'event' => NULL,
           'storage_location' => $config->get('prefered_storage_location'),
           'media_directory' => $config->get('prefered_media_directory'),
         ];
-
-        if ($event_group_field && $album_node->hasField($event_group_field)) {
-          $album_fields['event_group'] =
-          $album_node->get($event_group_field)->target_id;
-        }
 
         if ($event_field && $album_node->hasField($event_field)) {
           $album_fields['event'] =
@@ -468,10 +461,10 @@ class ActionConfigForm extends FormBase {
           'album_grp' => $values['album_grp'] ?? NULL,
           'album_id' => $album_id ?? NULL,
           'directory_tid' => $values['step_2_wrapper']['step_2']['directory_tid'] ?? NULL,
+          'grouped_media_fields' => $values['step_2_wrapper']['step_2']['grouped_media_fields'] ?? NULL,
           'album_fields' => $album_fields,
           'move' => TRUE,
           'event_id' => $album_fields['event'],
-          'event_group_id' => $album_fields['event_group'],
           'prefered_storage_location' => $album_fields['storage_location'],
           'prefered_media_directory' => $album_fields['prefered_directory'],
         ]);
@@ -1389,216 +1382,6 @@ class ActionConfigForm extends FormBase {
     }
 
     return "{$field_type}|{$field_label}";
-  }
-
-  /**
-   * Get editable fields grouped by designation (type, label, and taxonomy).
-   *
-   * This returns fields grouped by their "designation" so that equivalent
-   * fields across different media types are presented as one.
-   *
-   * Also includes fields from entities referenced through entity_reference fields
-   * (relationships) to provide a complete picture of editable fields.
-   *
-   * @param \Drupal\node\NodeInterface $node
-   *   The album node.
-   *
-   * @return array
-   *   Array grouped by designation key, each containing:
-   *   - 'designation': Human-readable designation
-   *   - 'field_config': First field config (representative)
-   *   - 'field_names': Array of actual field names across all media types
-   */
-  protected function getAlbumEditableFieldsGrouped($node) {
-    $grouped_fields = [];
-
-    try {
-      // Find the first media reference field on the node.
-      $query = $this->entityTypeManager->getStorage('field_config')
-        ->getQuery()
-        ->condition('entity_type', 'node')
-        ->condition('bundle', $node->bundle())
-        ->condition('field_type', 'entity_reference');
-
-      $field_ids = $query->execute();
-      $media_field = NULL;
-
-      if (!empty($field_ids)) {
-        $field_configs = $this->entityTypeManager->getStorage('field_config')
-          ->loadMultiple($field_ids);
-
-        // Find the first media reference field.
-        foreach ($field_configs as $field_config) {
-          if ($field_config->getSetting('target_type') === 'media') {
-            $media_field = $field_config;
-            break;
-          }
-        }
-      }
-
-      if (!$media_field) {
-        \Drupal::logger('media_drop')->notice('No media field found on node @nid', ['@nid' => $node->id()]);
-        return $grouped_fields;
-      }
-
-      // Get the media bundles this field accepts.
-      $target_bundles = $media_field->getSetting('handler_settings')['target_bundles'] ?? [];
-
-      // Determine which media bundles to load fields from.
-      $media_bundles_to_load = [];
-
-      if (!empty($target_bundles)) {
-        // Media field restricts to specific bundles.
-        $media_bundles_to_load = array_keys($target_bundles);
-      }
-      else {
-        // If no bundles restricted, use bundles from actual media in node.
-        $media_bundles_to_load = $this->getMediaBundlesInNode($node);
-      }
-
-      if (empty($media_bundles_to_load)) {
-        \Drupal::logger('media_drop')->notice('No media bundles found');
-        return $grouped_fields;
-      }
-
-      // Show message about multiple types.
-      if (count($media_bundles_to_load) > 1) {
-        \Drupal::messenger()->addStatus(
-        $this->t('Media field accepts multiple types: <strong>@types</strong>. Fields will be applied only where they exist.', [
-          '@types' => implode(', ', $media_bundles_to_load),
-        ])
-        );
-      }
-
-      // Types of fields to exclude (main media content).
-      $excluded_field_types = ['image', 'file', 'video_file', 'audio_file', 'document'];
-
-      // Load fields from ALL acceptable media bundles and group by designation.
-      foreach ($media_bundles_to_load as $media_bundle) {
-        $query = $this->entityTypeManager->getStorage('field_config')
-          ->getQuery()
-          ->condition('entity_type', 'media')
-          ->condition('bundle', $media_bundle);
-
-        $field_ids = $query->execute();
-
-        if (!empty($field_ids)) {
-          $field_configs = $this->entityTypeManager->getStorage('field_config')
-            ->loadMultiple($field_ids);
-
-          foreach ($field_configs as $field_config) {
-            $field_type = $field_config->get('field_type');
-            $is_base_field = $field_config->getFieldStorageDefinition()->isBaseField();
-
-            // Only include custom fields that are not excluded types or EXIF fields.
-            if (!$is_base_field &&
-            !in_array($field_type, $excluded_field_types) &&
-            !$this->isExifField($field_config->getName())) {
-
-              // Get the designation for this field.
-              $designation = $this->getFieldDesignation($field_config);
-
-              // Add to grouped fields.
-              if (!isset($grouped_fields[$designation])) {
-                $grouped_fields[$designation] = [
-                  'designation' => $field_config->get('label'),
-                  'field_config' => $field_config,
-                  'field_names' => [],
-                ];
-              }
-
-              // Add this field name to the list for this designation.
-              if (!in_array($field_config->getName(), $grouped_fields[$designation]['field_names'])) {
-                $grouped_fields[$designation]['field_names'][] = $field_config->getName();
-              }
-            }
-            // Also handle entity_reference fields to include related entity fields.
-            elseif ($field_type === 'entity_reference' && !$is_base_field) {
-              $target_type = $field_config->getSetting('target_type');
-              $target_bundles = $field_config->getSetting('handler_settings')['target_bundles'] ?? [];
-
-              // Load fields from the target entity type(s).
-              if (!empty($target_type)) {
-                $target_bundles_to_check = !empty($target_bundles) ? array_keys($target_bundles) : [];
-
-                // If no specific bundles, load all.
-                if (empty($target_bundles_to_check)) {
-                  $bundle_query = $this->entityTypeManager->getStorage('field_config')
-                    ->getQuery()
-                    ->condition('entity_type', $target_type);
-                  $bundle_field_ids = $bundle_query->execute();
-                  $target_bundles_to_check = [];
-
-                  if (!empty($bundle_field_ids)) {
-                    $target_bundle_configs = $this->entityTypeManager->getStorage('field_config')
-                      ->loadMultiple($bundle_field_ids);
-                    foreach ($target_bundle_configs as $cfg) {
-                      $bundle_name = $cfg->getTargetBundle();
-                      if (!in_array($bundle_name, $target_bundles_to_check)) {
-                        $target_bundles_to_check[] = $bundle_name;
-                      }
-                    }
-                  }
-                }
-
-                // Load and process fields from related entity bundles.
-                foreach ($target_bundles_to_check as $related_bundle) {
-                  $related_query = $this->entityTypeManager->getStorage('field_config')
-                    ->getQuery()
-                    ->condition('entity_type', $target_type)
-                    ->condition('bundle', $related_bundle);
-
-                  $related_field_ids = $related_query->execute();
-
-                  if (!empty($related_field_ids)) {
-                    $related_field_configs = $this->entityTypeManager->getStorage('field_config')
-                      ->loadMultiple($related_field_ids);
-
-                    foreach ($related_field_configs as $related_config) {
-                      $related_field_type = $related_config->get('field_type');
-                      $related_is_base = $related_config->getFieldStorageDefinition()->isBaseField();
-
-                      // Include editable related fields (text, taxonomies, etc.)
-                      if (!$related_is_base &&
-                      !in_array($related_field_type, $excluded_field_types) &&
-                      !$this->isExifField($related_config->getName()) &&
-                      in_array($related_field_type, ['string', 'string_long', 'text', 'text_long', 'text_with_summary', 'entity_reference'])) {
-
-                        $related_designation = $this->getFieldDesignation($related_config);
-
-                        // Add to grouped fields if not already there.
-                        if (!isset($grouped_fields[$related_designation])) {
-                          $grouped_fields[$related_designation] = [
-                            'designation' => $related_config->get('label'),
-                            'field_config' => $related_config,
-                            'field_names' => [],
-                          ];
-                        }
-
-                        // Add this field name to the list.
-                        if (!in_array($related_config->getName(), $grouped_fields[$related_designation]['field_names'])) {
-                          $grouped_fields[$related_designation]['field_names'][] = $related_config->getName();
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      \Drupal::logger('media_drop')->notice('Grouped fields by designation: @count groups', ['@count' => count($grouped_fields)]);
-    }
-    catch (\Exception $e) {
-      \Drupal::logger('media_drop')
-        ->warning('Error getting album editable fields grouped: @message', [
-          '@message' => $e->getMessage(),
-        ]);
-    }
-
-    return $grouped_fields;
   }
 
 }

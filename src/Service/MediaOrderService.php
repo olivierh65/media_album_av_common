@@ -41,11 +41,19 @@ class MediaOrderService {
    * @param array $data
    *   The data array containing media order information.
    *
-   * @return \Symfony\Component\HttpFoundation\JsonResponse
-   *   JSON response with status.
+   * @return array
+   *   Array with status, message, and processing counts.
    */
   public function saveMediaOrder(array $data) {
     $logger = $this->loggerFactory->get('media_album_av_common');
+
+    if (empty($data['media_order'])) {
+      return [
+        'success' => TRUE,
+        'message' => 'No media items to process.',
+        'media_received' => 0,
+      ];
+    }
 
     // Log the received data.
     $logger->info('Media order save request received for view: @view_id, display: @display_id, items: @count',
@@ -59,8 +67,8 @@ class MediaOrderService {
     // Allow other modules to process this data via hooks.
     \Drupal::moduleHandler()->invokeAll('media_album_av_common_media_order_save', [$data]);
 
-    $ret = $this->orderMediaItems($data['media_order'] ?? []);
-    return $ret;
+    $result = $this->orderMediaItems($data['media_order'] ?? []);
+    return $result;
   }
 
   /**
@@ -147,7 +155,7 @@ class MediaOrderService {
         return [
           'success' => FALSE,
           'message' => 'Error reordering media: ' . $e->getMessage(),
-          'processed_media' => count($processed_media),
+          'processed_media' => $processed_media,
         ];
       }
     }
@@ -192,7 +200,7 @@ class MediaOrderService {
         return [
           'success' => FALSE,
           'message' => 'Error updating media: ' . $e->getMessage(),
-          'processed_media' => count($processed_media),
+          'processed_media' => $processed_media,
           'processed_taxonomy' => $processed_media,
         ];
       }
@@ -201,7 +209,7 @@ class MediaOrderService {
       'success' => TRUE,
       'message' => 'Media order and taxonomy fields updated successfully.',
       'media_received' => count($media_items),
-      'processed_media' => count($processed_media),
+      'processed_media' => $processed_media,
       'processed_taxonomy' => $processed_media,
     ];
   }

@@ -16,8 +16,10 @@
 
         // Get tree data from drupalSettings (Drupal 8+ global variable).
         var treeData = [];
+        var vocabularyId = $tree.attr('data-vocabulary-id');
         if (typeof drupalSettings !== 'undefined' && drupalSettings.mediaDrop) {
           treeData = drupalSettings.mediaDrop.directoryTree || [];
+          vocabularyId = vocabularyId || drupalSettings.mediaDrop.vocabularyId || '';
         }
 
         var selectedTerm = $tree.attr('data-selected-term');

@@ -56,11 +56,6 @@ sortablejs:
 # Generic draggable-flexgrid library for both media_drop and media_album_av_common
 draggable-flexgrid:
   version: 1.x
-  js:
-    # js/draggable-flexgrid-dragula.js: {}
-    # js/draggable-flexgrid-sortable.js: {}
-    # js/draggable-flexgrid-manage-image.js: {}
-    # js/draggable-flexgrid-multi-select.js: {}
   css:
     theme:
       css/draggable-flexgrid-admin.css: {}

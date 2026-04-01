@@ -2,6 +2,7 @@
 
 namespace Drupal\media_album_av_common\Traits;
 
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\field\Entity\FieldConfig;
 
 /**
@@ -47,6 +48,89 @@ trait TaxonomyTrait {
     }
 
     return $fields;
+  }
+
+  /**
+   * Trouve ou crée un terme de taxonomie par son label.
+   *
+   * @param string $term_label
+   * @param string $vocabulary_id
+   *
+   * @return int|null
+   */
+  public function findOrCreateTaxonomyTerm(string $term_label, string $vocabulary_id): ?int {
+    if (empty($term_label) || empty($vocabulary_id)) {
+      return NULL;
+    }
+    try {
+      $storage = \Drupal::entityTypeManager()->getStorage('taxonomy_term');
+      $ids = $storage->getQuery()
+        ->condition('name', $term_label)
+        ->condition('vid', $vocabulary_id)
+        ->accessCheck(FALSE)
+        ->execute();
+      if (!empty($ids)) {
+        return (int) reset($ids);
+      }
+      $term = $storage->create(['name' => $term_label, 'vid' => $vocabulary_id]);
+      $term->save();
+      return (int) $term->id();
+    }
+    catch (\Exception $e) {
+      \Drupal::logger('media_drop')->error(
+      'findOrCreateTaxonomyTerm "@label" (@vid): @err',
+      ['@label' => $term_label, '@vid' => $vocabulary_id, '@err' => $e->getMessage()]
+      );
+      return NULL;
+    }
+  }
+
+  /**
+   * Résout une valeur brute de widget entity_reference vers un term ID.
+   *
+   * Gère : entité non sauvegardée (autocreate natif), "Label (123)",
+   * "123|Label", ID numérique pur, label libre → findOrCreate.
+   *
+   * @param mixed $value
+   * @param string $vocabulary_id
+   *
+   * @return int|null
+   */
+  public function resolveTermValue($value, string $vocabulary_id): ?int {
+    // Entité non sauvegardée (autocreate Drupal natif).
+    if (is_array($value)) {
+      $item = reset($value);
+      if (isset($item['entity']) && $item['entity'] instanceof EntityInterface) {
+        if ($item['entity']->isNew()) {
+          $item['entity']->save();
+        }
+        return (int) $item['entity']->id();
+      }
+      if (!empty($item['target_id']) && is_numeric($item['target_id'])) {
+        return (int) $item['target_id'];
+      }
+      return NULL;
+    }
+
+    $value = trim((string) $value);
+
+    // Format "Label (123)".
+    if (preg_match('/\((\d+)\)\s*$/', $value, $matches)) {
+      return (int) $matches[1];
+    }
+    // Format "123|Label".
+    if (preg_match('/^(\d+)\|/', $value, $matches)) {
+      return (int) $matches[1];
+    }
+    // ID numérique pur.
+    if (is_numeric($value)) {
+      return (int) $value;
+    }
+    // Label libre → findOrCreate.
+    if (!empty($value)) {
+      return $this->findOrCreateTaxonomyTerm($value, $vocabulary_id);
+    }
+    return NULL;
   }
 
 }

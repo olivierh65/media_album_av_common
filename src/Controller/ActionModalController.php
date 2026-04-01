@@ -25,6 +25,8 @@ class ActionModalController extends ControllerBase {
    */
   public function open(string $action_id, string $album_grp) {
     $request = \Drupal::request();
+
+    // Get prepared_media_data from POST payload (forced by JS).
     $data_json = $request->request->get('prepared_media_data', '');
 
     // Décoder le JSON en array associatif.

@@ -2,6 +2,7 @@
 
 namespace Drupal\media_album_av_common\Form;
 
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -456,12 +457,19 @@ class ActionConfigForm extends FormBase {
           return $response;
         }
 
-        // 4️⃣ Instanciation propre du plugin AVEC config
+        // 4️⃣ Résolution des termes autocreate AVANT instanciation du plugin.
+        $grouped_media_fields = $values['step_2_wrapper']['step_2']['grouped_media_fields'] ?? NULL;
+
+        if (!empty($grouped_media_fields)) {
+          $grouped_media_fields = $this->resolveAutocreateTerms($grouped_media_fields);
+        }
+
+        // 5️⃣ Instanciation propre du plugin AVEC config
         $action = $action_manager->createInstance($action_id, [
           'album_grp' => $values['album_grp'] ?? NULL,
           'album_id' => $album_id ?? NULL,
           'directory_tid' => $values['step_2_wrapper']['step_2']['directory_tid'] ?? NULL,
-          'grouped_media_fields' => $values['step_2_wrapper']['step_2']['grouped_media_fields'] ?? NULL,
+          'grouped_media_fields' => $grouped_media_fields ?? NULL,
           'album_fields' => $album_fields,
           'move' => TRUE,
           'event_id' => $album_fields['event'],
@@ -580,7 +588,7 @@ class ActionConfigForm extends FormBase {
    * @return array
    *   Array of incompatible media entities.
    */
-  protected function getIncompatibleMedia($node) {
+  protected function ___getIncompatibleMedia($node) {
     $incompatible = [];
 
     if (empty($this->mediaEntities)) {
@@ -660,7 +668,7 @@ class ActionConfigForm extends FormBase {
    * @return bool
    *   TRUE if fields are compatible, FALSE otherwise.
    */
-  protected function areFieldsCompatible($field1, $field2) {
+  protected function ___areFieldsCompatible($field1, $field2) {
     // If field types don't match, they're not compatible.
     if ($field1->getType() !== $field2->getType()) {
       return FALSE;
@@ -703,7 +711,7 @@ class ActionConfigForm extends FormBase {
    * @return array
    *   Array of media field configs with their settings.
    */
-  protected function getMediaFieldsConfig($node) {
+  protected function ___getMediaFieldsConfig($node) {
     $media_fields = [];
 
     try {
@@ -769,7 +777,7 @@ class ActionConfigForm extends FormBase {
    * @return array
    *   Array of unique media bundle names.
    */
-  protected function getMediaBundlesInNode($node) {
+  protected function ___getMediaBundlesInNode($node) {
     $bundles = [];
 
     try {
@@ -832,7 +840,7 @@ class ActionConfigForm extends FormBase {
    * @return array
    *   Array of media IDs with their labels, indexed by media ID.
    */
-  protected function getMediaIdsInAlbum($node) {
+  protected function ___getMediaIdsInAlbum($node) {
     $existing_media = [];
 
     try {
@@ -920,7 +928,7 @@ class ActionConfigForm extends FormBase {
    * @return array
    *   Array of parent term IDs from immediate parent to root.
    */
-  protected function getTermAncestors($term_id, array $terms) {
+  protected function ___getTermAncestors($term_id, array $terms) {
     $ancestors = [];
     $current_id = $term_id;
 
@@ -953,7 +961,7 @@ class ActionConfigForm extends FormBase {
    * @return array
    *   Hierarchical options array without any ★ marking.
    */
-  protected function buildHierarchicalDirectoryOptions(array $terms, $parent_id = 0, $depth = 0) {
+  protected function ___buildHierarchicalDirectoryOptions(array $terms, $parent_id = 0, $depth = 0) {
     $options = [];
     $indent = str_repeat('– ', $depth);
 
@@ -986,7 +994,7 @@ class ActionConfigForm extends FormBase {
    * @return array
    *   Form element array for directory selection.
    */
-  protected function buildDirectorySelector() {
+  protected function ___buildDirectorySelector() {
     $config = \Drupal::config('media_directories.settings');
     $vocabulary_id = $config->get('directory_taxonomy');
 
@@ -1117,7 +1125,7 @@ class ActionConfigForm extends FormBase {
    * @return array
    *   Array of directory taxonomy term IDs.
    */
-  protected function getUsedDirectoriesInalbum($node) {
+  protected function ___getUsedDirectoriesInalbum($node) {
     $directories = [];
 
     if (!$node) {
@@ -1225,7 +1233,7 @@ class ActionConfigForm extends FormBase {
    * @return array
    *   Array of field configs keyed by field name (union of all media types).
    */
-  protected function getalbumEditableFields($node) {
+  protected function ___getalbumEditableFields($node) {
     $editable_fields = [];
 
     try {
@@ -1368,7 +1376,7 @@ class ActionConfigForm extends FormBase {
    * @return string
    *   A unique designation key.
    */
-  protected function getFieldDesignation($field_config) {
+  protected function ___getFieldDesignation($field_config) {
     $field_type = $field_config->get('field_type');
     $field_label = $field_config->get('label');
 
@@ -1382,6 +1390,199 @@ class ActionConfigForm extends FormBase {
     }
 
     return "{$field_type}|{$field_label}";
+  }
+
+  /**
+   * Résout les valeurs autocreate des champs taxonomie avant exécution.
+   *
+   * Pour chaque champ taxonomy avec autocreate activé, crée le terme s'il
+   * n'existe pas encore et remplace la valeur string par l'ID du terme.
+   *
+   * @param array $grouped_media_fields
+   *   Les champs groupés issus du form_state.
+   *
+   * @return array
+   *   Les champs avec les valeurs string remplacées par des term IDs.
+   */
+  protected function resolveAutocreateTerms(array $grouped_media_fields): array {
+    $config = \Drupal::config('media_album_av.settings');
+    $media_types = $this->entityTypeManager->getStorage('media_type')->loadMultiple();
+
+    foreach ($grouped_media_fields as $designation_key => &$field_data) {
+      if (!is_array($field_data) || empty($field_data['field_names'])) {
+        continue;
+      }
+
+      $raw_value = $field_data['value'] ?? NULL;
+      if ($raw_value === NULL || $raw_value === '') {
+        continue;
+      }
+
+      foreach ($field_data['field_names'] as $field_name) {
+        // Chercher si ce field_name est un champ catégorie avec autocreate.
+        foreach ($media_types as $media_type_id => $media_type) {
+          $category_config = $config->get('category_fields.' . $media_type_id);
+          if (!$category_config || ($category_config['field_name'] ?? '') !== $field_name) {
+            continue;
+          }
+          if (empty($category_config['autocreate'])) {
+            break;
+          }
+
+          // Charger la field_config pour obtenir le vocabulary_id.
+          $field_config = $this->entityTypeManager
+            ->getStorage('field_config')
+            ->load('media.' . $media_type_id . '.' . $field_name);
+
+          if (!$field_config) {
+            break;
+          }
+
+          $handler_settings = $field_config->getSetting('handler_settings') ?? [];
+          $target_bundles   = $handler_settings['target_bundles'] ?? [];
+          $vocabulary_id    = !empty($target_bundles) ? array_key_first($target_bundles) : NULL;
+
+          if (!$vocabulary_id) {
+            break;
+          }
+
+          // Résoudre la valeur selon son format.
+          $resolved_id = $this->resolveTermValue($raw_value, $vocabulary_id);
+
+          if ($resolved_id) {
+            $field_data['value'] = $resolved_id;
+            \Drupal::logger('media_drop')->info(
+            'Autocreate: terme résolu "@val" → ID @id (vocab: @vocab)',
+            [
+              '@val' => is_string($raw_value) ? $raw_value : json_encode($raw_value),
+              '@id' => $resolved_id,
+              '@vocab' => $vocabulary_id,
+            ]
+            );
+          }
+          // Un seul media type peut correspondre à ce field_name.
+          break;
+        }
+      }
+    }
+
+    return $grouped_media_fields;
+  }
+
+  /**
+   * Résout une valeur de widget entity_reference vers un term ID entier.
+   *
+   * Gère les formats produits par le widget autocomplete Drupal :
+   *   - Entité non sauvegardée : ['entity' => TermObject] (autocreate natif)
+   *   - Format autocomplete   : "Label (123)" ou "123|Label"
+   *   - ID numérique pur      : "42" ou 42
+   *   - String libre          : "Nouveau terme" → findOrCreateTaxonomyTerm()
+   *
+   * @param mixed $value
+   *   La valeur brute issue du form_state.
+   * @param string $vocabulary_id
+   *   Le vocabulaire cible.
+   *
+   * @return int|null
+   *   L'ID du terme, ou NULL si non résolu.
+   */
+  public function resolveTermValue($value, string $vocabulary_id): ?int {
+
+    // Cas 0 : objet Term directement (autocreate déjà sauvegardé par Drupal).
+    if ($value instanceof EntityInterface) {
+      if ($value->isNew()) {
+        $value->save();
+      }
+      return (int) $value->id();
+    }
+
+    // Cas 1 : tableau avec entité non sauvegardée (autocreate Drupal natif).
+    if (is_array($value)) {
+      $item = reset($value);
+      // Sous-cas : l'item lui-même est un objet Term.
+      if ($item instanceof EntityInterface) {
+        if ($item->isNew()) {
+          $item->save();
+        }
+        return (int) $item->id();
+      }
+      if (isset($item['entity']) && $item['entity'] instanceof EntityInterface) {
+        if ($item['entity']->isNew()) {
+          $item['entity']->save();
+        }
+        return (int) $item['entity']->id();
+      }
+      if (!empty($item['target_id']) && is_numeric($item['target_id'])) {
+        return (int) $item['target_id'];
+      }
+      return NULL;
+    }
+
+    if (!is_string($value) && !is_numeric($value)) {
+      return NULL;
+    }
+
+    $value = trim((string) $value);
+
+    // Format "Label (123)".
+    if (preg_match('/\((\d+)\)\s*$/', $value, $matches)) {
+      return (int) $matches[1];
+    }
+    // Format "123|Label".
+    if (preg_match('/^(\d+)\|/', $value, $matches)) {
+      return (int) $matches[1];
+    }
+    // ID numérique pur.
+    if (is_numeric($value)) {
+      return (int) $value;
+    }
+    // Label libre → findOrCreate.
+    if (!empty($value)) {
+      return $this->findOrCreateTaxonomyTerm($value, $vocabulary_id);
+    }
+    return NULL;
+  }
+
+  /**
+   * Trouve ou crée un terme de taxonomie par son label.
+   *
+   * @param string $term_label
+   *   Le label du terme.
+   * @param string $vocabulary_id
+   *   Le vocabulaire cible.
+   *
+   * @return int|null
+   *   L'ID du terme trouvé ou créé.
+   */
+  protected function ___findOrCreateTaxonomyTerm(string $term_label, string $vocabulary_id): ?int {
+    if (empty($term_label) || empty($vocabulary_id)) {
+      return NULL;
+    }
+
+    try {
+      $storage = $this->entityTypeManager->getStorage('taxonomy_term');
+
+      $ids = $storage->getQuery()
+        ->condition('name', $term_label)
+        ->condition('vid', $vocabulary_id)
+        ->accessCheck(FALSE)
+        ->execute();
+
+      if (!empty($ids)) {
+        return (int) reset($ids);
+      }
+
+      $term = $storage->create(['name' => $term_label, 'vid' => $vocabulary_id]);
+      $term->save();
+      return (int) $term->id();
+    }
+    catch (\Exception $e) {
+      \Drupal::logger('media_drop')->error(
+      'findOrCreateTaxonomyTerm "@label" (@vid): @err',
+      ['@label' => $term_label, '@vid' => $vocabulary_id, '@err' => $e->getMessage()]
+      );
+      return NULL;
+    }
   }
 
 }

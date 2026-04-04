@@ -30,7 +30,7 @@ class ActionModalController extends ControllerBase {
     $data_json = $request->request->get('prepared_media_data', '');
 
     // Décoder le JSON en array associatif.
-    $prepared_data = json_decode($data_json, TRUE);
+    $prepared_data = json_decode($data_json, TRUE) ?? [];
 
     $form = \Drupal::formBuilder()->getForm(
       ActionConfigForm::class,

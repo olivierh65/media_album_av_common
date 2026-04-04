@@ -82,13 +82,33 @@ class ActionConfigForm extends FormBase {
   protected $move;
 
   /**
+   * Action ID.
+   *
+   * @var string
+   */
+
+  protected $actionId;
+  /**
+   * The album group.
+   *
+   * @var string
+   */
+
+  protected $albumGrp;
+  /**
+   * The prepared data.
+   *
+   * @var array
+   */
+  protected $preparedData;
+
+  /**
    * Constructs an ActionConfigForm object.
    */
   public function __construct(EntityTypeManagerInterface $entity_type_manager, ActionManager $action_plugin_manager, DirectoryService $taxonomy_service) {
     $this->entityTypeManager = $entity_type_manager;
     $this->actionPluginManager = $action_plugin_manager;
     $this->taxonomyService = $taxonomy_service;
-    $this->selectedMedia = [];
   }
 
   /**
@@ -112,7 +132,11 @@ class ActionConfigForm extends FormBase {
   /**
    * {@inheritdoc}
    */
-  public function buildForm(array $form, FormStateInterface $form_state) {
+  public function buildForm(array $form, FormStateInterface $form_state, $action_id = NULL, $album_grp = NULL, array $prepared_data = []) {
+
+    $this->actionId     = $action_id;
+    $this->albumGrp     = $album_grp;
+    $this->preparedData = $prepared_data;
 
     $user_id = (string) \Drupal::currentUser()->id();
 
@@ -191,6 +215,27 @@ class ActionConfigForm extends FormBase {
     // Ajouter les éléments de formulaire propres à l'action.
     $form = $action->buildConfigurationForm($form, $form_state);
 
+    // Champs cachés pour persister les données essentielles à travers les reloads AJAX.
+    $form['action_id_hidden'] = [
+      '#type' => 'hidden',
+      '#value' => $action_id,
+    ];
+
+    $form['album_grp_hidden'] = [
+      '#type' => 'hidden',
+      '#value' => $album_grp,
+    ];
+
+    $form['prepared_data_hidden'] = [
+      '#type' => 'hidden',
+      '#value' => json_encode($prepared_data),
+    ];
+
+    $form['action_data_flag_hidden'] = [
+      '#type' => 'hidden',
+      '#value' => 1,
+    ];
+
     // Attach autocomplete libraries to the main form.
     $form['#attached'] = [
       'library' => [
@@ -232,7 +277,10 @@ class ActionConfigForm extends FormBase {
         'data-prepare-function' => 'prepareActionData', */
       ],
       '#ajax' => [
-        'callback' => '::submitFormAjax',
+        'callback' => [
+          '\Drupal\media_album_av_common\Form\ActionConfigForm',
+          'submitFormAjax',
+        ],
         'event' => 'click',
         'progress' => [
           'type' => 'throbber',
@@ -249,7 +297,10 @@ class ActionConfigForm extends FormBase {
         'class' => ['dialog-cancel', 'button'],
       ],
       '#ajax' => [
-        'callback' => '::cancelFormAjax',
+        'callback' => [
+          '\Drupal\media_album_av_common\Form\ActionConfigForm',
+          'cancelFormAjax',
+        ],
         'event' => 'click',
       ],
       '#limit_validation_errors' => [],
@@ -261,7 +312,7 @@ class ActionConfigForm extends FormBase {
   /**
    * Callback Ajax pour le bouton Annuler.
    */
-  public function cancelFormAjax(array &$form, FormStateInterface $form_state) {
+  public static function cancelFormAjax(array &$form, FormStateInterface $form_state) {
     $response = new AjaxResponse();
 
     // Simplement fermer la modale.
@@ -273,8 +324,7 @@ class ActionConfigForm extends FormBase {
   /**
    * Callback Ajax pour le bouton OK/Submit.
    */
-  public function submitFormAjax(array &$form, FormStateInterface $form_state) {
-
+  public static function submitFormAjax(array &$form, FormStateInterface $form_state) {
     $response = new AjaxResponse();
     // Vérifier les erreurs de validation.
     if ($form_state->hasAnyErrors()) {
@@ -290,41 +340,56 @@ class ActionConfigForm extends FormBase {
       $action_id = $form_state->getBuildInfo()['args'][0] ?? NULL;
       $album_grp = $form_state->getBuildInfo()['args'][1] ?? NULL;
 
+      // Get the form object to call instance methods.
+      $form_class = new self(
+        \Drupal::entityTypeManager(),
+        \Drupal::service('plugin.manager.action'),
+        \Drupal::service('media_drop.taxonomy_service')
+      );
+
       // Votre logique métier ici.
-      $return = $this->executeAction($action_id, $form_state->getValues());
+      $return = $form_class->executeAction($action_id, $form_state->getValues());
 
       if ($return) {
         foreach ($return['response'] as $command) {
           $response->addCommand($command);
         }
         if ($return['status'] !== 'error') {
-          $response->addCommand(new CloseModalDialogCommand());
-          // Passer les données au JS.
-          $response->addCommand(new SettingsCommand([
-            'mediaAction' => [
-              'albumGrp' => $album_grp,
-              'result' => [
-                'success' => TRUE,
-                'moved_ids' => $return['moved_ids'] ?? [],
-              ],
+          // Données communes.
+          $settings_data = [
+            'albumGrp' => $album_grp,
+            'result'   => [
+              'success' => TRUE,
             ],
-          ], TRUE));
-          // déclencher l'événement sur le bouton execute du groupe.
-          $response->addCommand(new InvokeCommand(
-          '.media-light-table-execute-action[data-album-grp="' . $album_grp . '"]',
-          'trigger',
-          ['actionAjaxResponse']
-          ));
-          $response->addCommand(new InvokeCommand('document', 'trigger', [
-            'mediaAlbumActionComplete',
-          [$album_grp, $action_id],
-          ]));
+          ];
+
+          // Selon l'action : moved_ids ou reordered_ids.
+          // ⚠️ IMPORTANT: Ajouter les triggers AVANT closeDialog, sinon l'élément n'existe plus dans le DOM!
+          if (!empty($return['moved_ids'])) {
+            $settings_data['result']['moved_ids'] = $return['moved_ids'];
+            $response->addCommand(new SettingsCommand(['mediaAction' => $settings_data], TRUE));
+            $response->addCommand(new InvokeCommand(
+              '.media-light-table-execute-action[data-album-grp="' . $album_grp . '"]',
+              'trigger', ['executeActionResponse']
+            ));
+          }
+          elseif (!empty($return['reordered_ids'])) {
+            $settings_data['result']['reordered_ids'] = $return['reordered_ids'];
+            $response->addCommand(new SettingsCommand(['mediaSort' => $settings_data], TRUE));
+            $response->addCommand(new InvokeCommand(
+              '.media-light-table-execute-action[data-album-grp="' . $album_grp . '"]',
+              'trigger', ['executeActionResponse']
+            ));
+          }
+
+          // Fermer la modal EN DERNIER après tous les triggers et settings
+          $response->addCommand(new CloseModalDialogCommand());
         }
 
       }
       else {
         // Afficher l'erreur dans la modale.
-        $this->messenger()->addError($this->t('Action execution failed. Please try again.'));
+        \Drupal::messenger()->addError(t('Action execution failed. Please try again.'));
         $response->addCommand(new ReplaceCommand('#modal-messages', [
           '#type' => 'status_messages',
         ]));
@@ -332,7 +397,7 @@ class ActionConfigForm extends FormBase {
 
     }
     catch (\Exception $e) {
-      $this->messenger()->addError($this->t('An error occurred: @error', ['@error' => $e->getMessage()]));
+      \Drupal::messenger()->addError(t('An error occurred: @error', ['@error' => $e->getMessage()]));
       $response->addCommand(new ReplaceCommand('#modal-messages', [
         '#type' => 'status_messages',
       ]));
@@ -375,115 +440,13 @@ class ActionConfigForm extends FormBase {
         break;
 
       case 'media_drop_move_to_album':
-        // 1️⃣ Récupération album
-        $album_id = $values['step_1']['album_id'] ?? NULL;
+        return $this->doMoveToAlbum($action_id, $values, $response, $action_manager);
 
-        if (!$album_id) {
-          $response['response'][] = new MessageCommand(
-          $this->t('No album selected. Please select an album.'), NULL,
-          ['type' => 'error']
-          );
-          $response['status'] = 'error';
-          return $response;
-        }
+      break;
 
-        $album_node = $this->entityTypeManager
-          ->getStorage('node')
-          ->load($album_id);
-
-        if (!$album_node) {
-          $response['response'][] = new MessageCommand(
-          $this->t('Album node not found.'), NULL,
-          ['type' => 'error']
-          );
-          $response['status'] = 'error';
-          return $response;
-        }
-
-        // 2️⃣ Config module
-        $config = \Drupal::config('media_album_av.settings');
-
-        $event_field = $config->get('event_field');
-
-        $album_fields = [
-          'event' => NULL,
-          'storage_location' => $config->get('prefered_storage_location'),
-          'media_directory' => $config->get('prefered_media_directory'),
-        ];
-
-        if ($event_field && $album_node->hasField($event_field)) {
-          $album_fields['event'] =
-          $album_node->get($event_field)->target_id;
-        }
-
-        $prefered_directory_field = $this->getTaxonomyReferenceFields($album_node->bundle(), $album_fields['media_directory']);
-        if ($prefered_directory_field && $album_node->hasField($prefered_directory_field[0])) {
-          $album_fields['prefered_directory'] =
-          $album_node->get($prefered_directory_field[0])->target_id;
-        }
-
-        // 3️⃣ Récupération médias
-        $data = json_decode($values['prepared_data'], TRUE);
-
-        if (empty($data['selected_items'])) {
-          $response['response'][] = new MessageCommand(
-          $this->t('No data to process.'), NULL,
-          ['type' => 'warning']
-          );
-          $response['status'] = 'warning';
-          return $response;
-        }
-
-        $entities = [];
-
-        foreach ($data['selected_items'] as $item) {
-          if (!empty($item['media_id'])) {
-            $media = $this->entityTypeManager
-              ->getStorage('media')
-              ->load($item['media_id']);
-
-            if ($media) {
-              $entities[] = $media;
-            }
-          }
-        }
-
-        if (empty($entities)) {
-          $response['response'][] = new MessageCommand(
-          $this->t('No valid media found to process.'), NULL,
-          ['type' => 'warning']
-          );
-          $response['status'] = 'warning';
-          return $response;
-        }
-
-        // 4️⃣ Résolution des termes autocreate AVANT instanciation du plugin.
-        $grouped_media_fields = $values['step_2_wrapper']['step_2']['grouped_media_fields'] ?? NULL;
-
-        if (!empty($grouped_media_fields)) {
-          $grouped_media_fields = $this->resolveAutocreateTerms($grouped_media_fields);
-        }
-
-        // 5️⃣ Instanciation propre du plugin AVEC config
-        $action = $action_manager->createInstance($action_id, [
-          'album_grp' => $values['album_grp'] ?? NULL,
-          'album_id' => $album_id ?? NULL,
-          'directory_tid' => $values['step_2_wrapper']['step_2']['directory_tid'] ?? NULL,
-          'grouped_media_fields' => $grouped_media_fields ?? NULL,
-          'album_fields' => $album_fields,
-          'move' => TRUE,
-          'event_id' => $album_fields['event'],
-          'prefered_storage_location' => $album_fields['storage_location'],
-          'prefered_media_directory' => $album_fields['prefered_directory'],
-        ]);
-
-        // 5️⃣ Exécution
-        $result = $action->executeMultiple([
-          'album_id' => $album_id,
-          'entities' => $entities,
-        ]);
-
-        return $result;
+      case 'media_drop_sort_media':
+        // Logique pour trier les médias dans l'album.
+        return $this->doSortMedia($action_id, $values, $response, $action_manager);
 
       break;
 
@@ -492,6 +455,149 @@ class ActionConfigForm extends FormBase {
         $response['response'][] = new MessageCommand($this->t('Unknown action.'), NULL, ['type' => 'error']);
     }
     return $response;
+  }
+
+  /**
+   * Exécute l'action de déplacement vers un album.
+   */
+  private function doMoveToAlbum($action_id, $values, $response, $action_manager) {
+    // 1️⃣ Récupération album
+    $album_id = $values['step_1']['album_id'] ?? NULL;
+
+    if (!$album_id) {
+      $response['response'][] = new MessageCommand(
+      $this->t('No album selected. Please select an album.'), NULL,
+      ['type' => 'error']
+      );
+      $response['status'] = 'error';
+      return $response;
+    }
+
+    $album_node = $this->entityTypeManager
+      ->getStorage('node')
+      ->load($album_id);
+
+    if (!$album_node) {
+      $response['response'][] = new MessageCommand(
+      $this->t('Album node not found.'), NULL,
+      ['type' => 'error']
+      );
+      $response['status'] = 'error';
+      return $response;
+    }
+
+    // 2️⃣ Config module
+    $config = \Drupal::config('media_album_av.settings');
+
+    $event_field = $config->get('event_field');
+
+    $album_fields = [
+      'event' => NULL,
+      'storage_location' => $config->get('prefered_storage_location'),
+      'media_directory' => $config->get('prefered_media_directory'),
+    ];
+
+    if ($event_field && $album_node->hasField($event_field)) {
+      $album_fields['event'] =
+          $album_node->get($event_field)->target_id;
+    }
+
+    $prefered_directory_field = $this->getTaxonomyReferenceFields($album_node->bundle(), $album_fields['media_directory']);
+    if ($prefered_directory_field && $album_node->hasField($prefered_directory_field[0])) {
+      $album_fields['prefered_directory'] =
+          $album_node->get($prefered_directory_field[0])->target_id;
+    }
+
+    // 3️⃣ Récupération médias
+    $data = json_decode($values['prepared_data'], TRUE);
+
+    if (empty($data['selected_items'])) {
+      $response['response'][] = new MessageCommand(
+      $this->t('No data to process.'), NULL,
+      ['type' => 'warning']
+      );
+      $response['status'] = 'warning';
+      return $response;
+    }
+
+    $entities = [];
+
+    foreach ($data['selected_items'] as $item) {
+      if (!empty($item['media_id'])) {
+        $media = $this->entityTypeManager
+          ->getStorage('media')
+          ->load($item['media_id']);
+
+        if ($media) {
+          $entities[] = $media;
+        }
+      }
+    }
+
+    if (empty($entities)) {
+      $response['response'][] = new MessageCommand(
+      $this->t('No valid media found to process.'), NULL,
+      ['type' => 'warning']
+      );
+      $response['status'] = 'warning';
+      return $response;
+    }
+
+    // 4️⃣ Résolution des termes autocreate AVANT instanciation du plugin.
+    $grouped_media_fields = $values['step_2_wrapper']['step_2']['grouped_media_fields'] ?? NULL;
+
+    if (!empty($grouped_media_fields)) {
+      $grouped_media_fields = $this->resolveAutocreateTerms($grouped_media_fields);
+    }
+
+    // 5️⃣ Instanciation propre du plugin AVEC config
+    $action = $action_manager->createInstance($action_id, [
+      'album_grp' => $values['album_grp'] ?? NULL,
+      'album_id' => $album_id ?? NULL,
+      'directory_tid' => $values['step_2_wrapper']['step_2']['directory_tid'] ?? NULL,
+      'grouped_media_fields' => $grouped_media_fields ?? NULL,
+      'album_fields' => $album_fields,
+      'move' => TRUE,
+      'event_id' => $album_fields['event'],
+      'prefered_storage_location' => $album_fields['storage_location'],
+      'prefered_media_directory' => $album_fields['prefered_directory'],
+    ]);
+
+    // 5️⃣ Exécution
+    $result = $action->executeMultiple([
+      'album_id' => $album_id,
+      'entities' => $entities,
+    ]);
+
+    return $result;
+  }
+
+  /**
+   *
+   */
+  private function doSortMedia($action_id, $values, $response, $action_manager) {
+    $sort_by    = $values['sort_config']['sort_by'] ?? 'title';
+    $sort_order = $values['sort_config']['sort_order'] ?? 'ASC';
+
+    $data = json_decode($values['prepared_data'], TRUE);
+
+    if (empty($data['selected_items'])) {
+      return [
+        'status'        => 'warning',
+        'response'      => [new MessageCommand($this->t('No media selected.'), NULL, ['type' => 'warning'])],
+        'reordered_ids' => [],
+      ];
+    }
+
+    $action = $action_manager->createInstance($action_id, [
+      'sort_by'        => $sort_by,
+      'sort_order'     => $sort_order,
+      'album_grp'      => $values['album_grp'] ?? NULL,
+      'selected_media' => $data['selected_items'] ?? [],
+      'all_media'      => $data['all_items'] ?? [],
+    ]);
+
+    return $action->executeMultiple([]);
   }
 
   /**

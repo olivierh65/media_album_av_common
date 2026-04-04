@@ -879,7 +879,6 @@ display:
               field: field_media_album_av_category
               rendered: false
               rendered_strip: true
-          sorter: sortable
           columns: '6'
           gap: 10px
           image_thumbnail_style: medium
@@ -887,6 +886,7 @@ display:
           align: stretch
           responsive: 1
           use_actions: 1
+          use_save_reorg: 1
           field_mapping:
             thumbnail:
               enabled: 1

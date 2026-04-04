@@ -450,6 +450,11 @@ class ActionConfigForm extends FormBase {
 
       break;
 
+      case 'media_drop_extract_exif':
+        return $this->doExtractExifData($action_id, $values, $response, $action_manager);
+
+      break;
+
       default:
         $response['status'] = 'error';
         $response['response'][] = new MessageCommand($this->t('Unknown action.'), NULL, ['type' => 'error']);
@@ -598,6 +603,62 @@ class ActionConfigForm extends FormBase {
     ]);
 
     return $action->executeMultiple([]);
+  }
+
+  /**
+   * Exécute l'action d'extraction EXIF sur les médias sélectionnés.
+   */
+  private function doExtractExifData($action_id, $values, $response, $action_manager) {
+    $data = json_decode($values['prepared_data'], TRUE);
+
+    if (empty($data['selected_items'])) {
+      return [
+        'status'   => 'warning',
+        'response' => [new MessageCommand($this->t('No media selected.'), NULL, ['type' => 'warning'])],
+      ];
+    }
+
+    // Récupérer les entités médias
+    $entities = [];
+    foreach ($data['selected_items'] as $item) {
+      if (!empty($item['media_id'])) {
+        $media = $this->entityTypeManager
+          ->getStorage('media')
+          ->load($item['media_id']);
+        if ($media) {
+          $entities[] = $media;
+        }
+      }
+    }
+
+    if (empty($entities)) {
+      return [
+        'status'   => 'warning',
+        'response' => [new MessageCommand($this->t('No valid media found to process.'), NULL, ['type' => 'warning'])],
+      ];
+    }
+
+    // Récupérer la configuration EXIF du formulaire
+    $auto_create_fields = $values['exif_config']['auto_create_fields'] ?? FALSE;
+    $exif_keys = $values['exif_config']['exif_keys'] ?? [];
+    
+    // Filter out unchecked values (checkboxes return 0 for unchecked items)
+    $exif_keys = array_filter($exif_keys);
+    
+    // If no keys selected, we'll use empty array and let executeMultiple use defaults
+    \Drupal::logger('media_drop')->info('EXIF keys from form: @keys', 
+      ['@keys' => empty($exif_keys) ? 'EMPTY' : implode(', ', $exif_keys)]
+    );
+
+    // Créer l'instance de l'action avec la configuration
+    $action = $action_manager->createInstance($action_id, [
+      'auto_create_fields' => $auto_create_fields,
+      'exif_keys' => $exif_keys,
+      'album_grp' => $values['album_grp'] ?? NULL,
+    ]);
+
+    // Exécuter l'action
+    return $action->executeMultiple(['entities' => $entities]);
   }
 
   /**

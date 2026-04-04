@@ -39,3 +39,10 @@ services:
     arguments:
       - '@entity_type.manager'
       - '@media_album_av_common.grouping_fields'
+
+  media_album_av_common.exif_field_manager:
+    class: Drupal\media_album_av_common\Service\ExifFieldManager
+    arguments:
+      - '@entity_type.manager'
+      - '@logger.factory'
+      - '@messenger'

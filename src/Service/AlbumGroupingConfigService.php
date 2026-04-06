@@ -138,6 +138,45 @@ class AlbumGroupingConfigService {
   }
 
   /**
+   * Convert grouping fields from service to renderGrouping format.
+   *
+   * @param array $grouping_fields
+   *   Array with structure:
+   *   [
+   *     ['field' => 'node:field_event', 'terms' => ['1' => 0, ...]],
+   *     ['field' => 'media:field_author', 'terms' => []],
+   *   ].
+   *
+   * @return array
+   *   Format expected by $this->options['grouping'].
+   */
+  public function convertFieldsToViewGrouping(array $grouping_fields, bool $rendered) {
+    $grouping = [];
+
+    foreach ($grouping_fields as $delta => $field_data) {
+      // Support new format: ['field' => '...', 'terms' => [...]].
+      if (is_array($field_data) && isset($field_data['field'])) {
+        $prefixed_field = $field_data['field'];
+      }
+      else {
+        // Fallback for legacy format: simple string.
+        $prefixed_field = $field_data;
+      }
+
+      // Remove the prefix node: or media:.
+      $clean_field = preg_replace('/^(node|media):/', '', $prefixed_field);
+
+      $grouping[$delta] = [
+        'field' => $clean_field,
+        'rendered' => $rendered,
+        'rendered_strip' => FALSE,
+      ];
+    }
+
+    return $grouping;
+  }
+
+  /**
    * Get rendered terms without HTML tags.
    *
    * @param array $terms

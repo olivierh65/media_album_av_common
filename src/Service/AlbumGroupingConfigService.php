@@ -47,7 +47,14 @@ class AlbumGroupingConfigService {
    *   The album node.
    *
    * @return array
-   *   Array of field names in grouping order (lowest to highest level).
+   *   Array of field configurations with structure:
+   *   [
+   *     [
+   *       'field' => 'node:field_name' or 'media:field_name',
+   *       'terms' => ['tid' => weight, ...] or []
+   *     ],
+   *     ...
+   *   ]
    */
   public function getAlbumGroupingFields(NodeInterface $album_node) {
     // @todo content type should be dynamic based on actual album content type.
@@ -65,18 +72,27 @@ class AlbumGroupingConfigService {
 
     $fields = [];
     foreach ($album_node->get($grouping_field) as $item) {
-      // The field now stores JSON with structure: {"field": "node:field_name", "terms": {...}}.
+      // The field stores JSON: {"field": "node:field_name", "terms": {...}}.
       $config_data = json_decode($item->value, TRUE);
 
       if (!empty($config_data['field'])) {
         $field_name = $config_data['field'];
         if ($this->groupingFieldsService->isValidField($field_name)) {
-          $fields[] = $field_name;
+          $fields[] = [
+            'field' => $field_name,
+            'terms' => $config_data['terms'] ?? [],
+            'terms_rendered' => $this->getRenderedTerms($config_data['terms'] ?? []),
+          ];
         }
       }
       // Fallback for legacy plain text values.
       elseif (!empty($item->value) && $this->groupingFieldsService->isValidField($item->value)) {
-        $fields[] = $item->value;
+        $fields[] = [
+          'field' => $item->value,
+          'terms' => [],
+          'terms_rendered' => [],
+
+        ];
       }
     }
 
@@ -90,27 +106,74 @@ class AlbumGroupingConfigService {
     $fields = $this->getAlbumGroupingFields($album_node);
     $config = [];
 
-    foreach ($fields as $level => $prefixed_field) {
+    foreach ($fields as $level => $field_data) {
+      $prefixed_field = $field_data['field'];
+      $terms = $field_data['terms'] ?? [];
+
       $parsed = $this->parseFieldName($prefixed_field);
       if (!$parsed) {
         continue;
       }
 
-      $field_config = $this->groupingFieldsService->getField($parsed['field_name'], $parsed['source']);
+      $field_config = $this->groupingFieldsService->getField(
+        $parsed['field_name'],
+        $parsed['source']
+      );
       if ($field_config) {
         $config[] = [
           'level' => $level,
-        // On garde le préfixe pour l'identification unique.
+          // Garde le préfixe pour l'identification unique.
           'field_name' => $prefixed_field,
           'field_name_raw' => $parsed['field_name'],
           'label' => $field_config['label'] ?? $parsed['field_name'],
           'type' => $field_config['type'] ?? '',
           'source' => $parsed['source'],
+          'terms' => $terms,
+          'terms_rendered' => $this->getRenderedTerms($terms),
         ];
       }
     }
 
     return $config;
+  }
+
+  /**
+   * Get rendered terms without HTML tags.
+   *
+   * @param array $terms
+   *   Array of term IDs with weights: ['tid' => weight, ...].
+   *
+   * @return array
+   *   Array of rendered terms: ['tid' => 'rendered_label', ...].
+   */
+  private function getRenderedTerms(array $terms) {
+    if (empty($terms)) {
+      return [];
+    }
+
+    $rendered = [];
+    try {
+      $term_ids = array_keys($terms);
+      $taxonomy_terms = $this->entityTypeManager->getStorage('taxonomy_term')->loadMultiple($term_ids);
+
+      foreach ($term_ids as $tid) {
+        if (isset($taxonomy_terms[$tid])) {
+          $term = $taxonomy_terms[$tid];
+          // Get the term label and strip HTML tags.
+          $label = $term->label();
+          $rendered[$tid] = strip_tags($label);
+        }
+      }
+    }
+    catch (\Exception $e) {
+      // Return empty array if there's an error loading terms.
+      \Drupal::logger('media_album_av_common')->warning(
+        'Error loading rendered terms: @message',
+        ['@message' => $e->getMessage()]
+      );
+    }
+
+    return $rendered;
   }
 
   /**

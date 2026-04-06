@@ -51,13 +51,13 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
     return new static(
-      $plugin_id,
-      $plugin_definition,
-      $configuration['field_definition'],
-      $configuration['settings'],
-      $configuration['third_party_settings'],
-      $container->get('media_album_av_common.grouping_fields'),
-      $container->get('media_album_av_common.directory_service')
+    $plugin_id,
+    $plugin_definition,
+    $configuration['field_definition'],
+    $configuration['settings'],
+    $configuration['third_party_settings'],
+    $container->get('media_album_av_common.grouping_fields'),
+    $container->get('media_album_av_common.directory_service')
     );
   }
 
@@ -127,12 +127,12 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
         // Debug: log restored data.
         if (!empty($value) && is_array($data) && !empty($data['terms'])) {
           \Drupal::logger('media_album_av_common')->debug(
-            'Restored level @level: field=@field, terms=@terms',
-            [
-              '@level' => $d,
-              '@field' => $selected_field,
-              '@terms' => json_encode($data['terms']),
-            ]
+          'Restored level @level: field=@field, terms=@terms',
+          [
+            '@level' => $d,
+            '@field' => $selected_field,
+            '@terms' => json_encode($data['terms']),
+          ]
           );
         }
       }
@@ -175,7 +175,8 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
         // Get the vocabulary ID based on entity type and node context.
         $vocab_id = $this->getVocabularyForField($clean_field_name, $entity_type, $form_state);
 
-        $terms = $this->getTermsForField($clean_field_name, $entity_type, $vocab_id);
+        // Get terms, filtered by those used in album medias if applicable.
+        $terms = $this->getFilteredTermsForField($clean_field_name, $entity_type, $vocab_id, $form_state);
 
         if (!empty($terms)) {
           // Sort terms by their saved weights.
@@ -267,9 +268,9 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
     }
     catch (\Exception $e) {
       \Drupal::logger('media_album_av_common')->error(
-        'Error getting field options: @message',
-        ['@message' => $e->getMessage()]
-          );
+      'Error getting field options: @message',
+      ['@message' => $e->getMessage()]
+        );
     }
     return $options;
   }
@@ -302,6 +303,157 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
       }
     }
     return $result;
+  }
+
+  /**
+   * Get filtered taxonomy terms based on album medias.
+   *
+   * If the album (node) contains medias, returns only terms used in those
+   * medias. Otherwise, returns all terms for the vocabulary.
+   *
+   * @param string $field_name
+   *   The field name (without entity type prefix).
+   * @param string $entity_type
+   *   The entity type (e.g., 'media', 'node'). Defaults to 'media'.
+   * @param string|null $vocab_id
+   *   The vocabulary ID.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state to extract entity context.
+   *
+   * @return array
+   *   Array of terms keyed by tid with name as value.
+   */
+  protected function getFilteredTermsForField($field_name, $entity_type, $vocab_id, FormStateInterface $form_state) {
+    try {
+      $form_object = $form_state->getFormObject();
+      if (!$form_object || !method_exists($form_object, 'getEntity')) {
+        return $this->getTermsForField($field_name, $entity_type, $vocab_id);
+      }
+
+      $entity = $form_object->getEntity();
+      if (!$entity) {
+        return $this->getTermsForField($field_name, $entity_type, $vocab_id);
+      }
+
+      // Only filter for media fields on node albums.
+      if ($entity_type === 'media' && $entity->getEntityTypeId() === 'node') {
+        // Load all terms first.
+        $all_terms = $this->getTermsForField($field_name, $entity_type, $vocab_id);
+
+        // Get medias linked to this album node.
+        $media_ids = $this->getMediasForAlbum($entity);
+
+        if (!empty($media_ids)) {
+          // Extract terms used in these medias for the field.
+          $used_terms = $this->getTermsUsedInMedias($media_ids, $field_name, $vocab_id);
+
+          if (!empty($used_terms)) {
+            // Return only terms that are used in medias, plus "Non classé".
+            $filtered_terms = array_intersect_key($all_terms, $used_terms);
+            // Always include the pseudo-term "Non classé" if it exists.
+            if (isset($all_terms[0])) {
+              $filtered_terms[0] = $all_terms[0];
+            }
+            return $filtered_terms;
+          }
+        }
+      }
+
+      // Fallback: return all terms if not filtering.
+      return $this->getTermsForField($field_name, $entity_type, $vocab_id);
+    }
+    catch (\Exception $e) {
+      // Fallback to all terms on error.
+      return $this->getTermsForField($field_name, $entity_type, $vocab_id);
+    }
+  }
+
+  /**
+   * Get media IDs linked to an album node.
+   *
+   * @param object $node
+   *   The album node entity.
+   *
+   * @return array
+   *   Array of media IDs.
+   */
+  protected function getMediasForAlbum($node) {
+    $media_ids = [];
+
+    try {
+      // Look for media reference fields on the node.
+      if (method_exists($node, 'getFields')) {
+        $fields = $node->getFields();
+        foreach ($fields as $field) {
+          $field_def = $field->getFieldDefinition();
+          if ($field_def->getType() === 'entity_reference' &&
+            $field_def->getSetting('target_type') === 'media') {
+
+            $values = $field->getValue();
+            foreach ($values as $item) {
+              if (!empty($item['target_id'])) {
+                $media_ids[] = $item['target_id'];
+              }
+            }
+          }
+        }
+      }
+    }
+    catch (\Exception $e) {
+      // Silently fail and return empty.
+    }
+
+    return $media_ids;
+  }
+
+  /**
+   * Get terms used in medias for a given field.
+   *
+   * @param array $media_ids
+   *   Array of media IDs.
+   * @param string $field_name
+   *   The field name to check.
+   * @param string|null $vocab_id
+   *   The vocabulary ID (for validation).
+   *
+   * @return array
+   *   Array keyed by term ID with TRUE as value.
+   */
+  protected function getTermsUsedInMedias(array $media_ids, $field_name, $vocab_id) {
+    $used_terms = [];
+
+    try {
+      $storage = \Drupal::entityTypeManager()->getStorage('media');
+      $medias = $storage->loadMultiple($media_ids);
+
+      foreach ($medias as $media) {
+        if (method_exists($media, 'hasField') && $media->hasField($field_name)) {
+          $field_values = $media->get($field_name)->getValue();
+          foreach ($field_values as $item) {
+            if (!empty($item['target_id'])) {
+              $tid = $item['target_id'];
+              // Validate term belongs to the vocabulary if vocab_id provided.
+              if ($vocab_id) {
+                $term = \Drupal::entityTypeManager()
+                  ->getStorage('taxonomy_term')
+                  ->load($tid);
+                if ($term && $term->bundle() === $vocab_id) {
+                  $used_terms[$tid] = TRUE;
+                }
+              }
+              else {
+                $used_terms[$tid] = TRUE;
+              }
+            }
+          }
+        }
+      }
+    }
+    catch (\Exception $e) {
+      // Silently fail and return empty.
+    }
+
+    return $used_terms;
   }
 
   /**

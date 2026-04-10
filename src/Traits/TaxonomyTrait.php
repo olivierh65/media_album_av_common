@@ -97,10 +97,28 @@ trait TaxonomyTrait {
    * @return int|null
    */
   public function resolveTermValue($value, string $vocabulary_id): ?int {
+    // Entité directe (cas peu fréquent mais possible).
+    if ($value instanceof EntityInterface) {
+      if ($value->isNew()) {
+        $value->save();
+      }
+      return (int) $value->id();
+    }
+
     // Entité non sauvegardée (autocreate Drupal natif).
+    // Le widget entity_autocomplete (sans #tags) stocke ['entity' => TermObject]
+    // donc reset() retourne directement l'objet Term.
     if (is_array($value)) {
       $item = reset($value);
-      if (isset($item['entity']) && $item['entity'] instanceof EntityInterface) {
+      // Cas: reset() donne l'objet Term directement (clé 'entity' de l'array).
+      if ($item instanceof EntityInterface) {
+        if ($item->isNew()) {
+          $item->save();
+        }
+        return (int) $item->id();
+      }
+      // Cas: l'item est lui-même un array avec une clé 'entity'.
+      if (is_array($item) && isset($item['entity']) && $item['entity'] instanceof EntityInterface) {
         if ($item['entity']->isNew()) {
           $item['entity']->save();
         }

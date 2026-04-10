@@ -1,0 +1,17 @@
+.media-album-av-autocreate-status {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.3;
+}
+
+.media-album-av-autocreate-status strong {
+  font-weight: 700;
+}
+
+.media-album-av-autocreate-status.is-possible {
+  color: #1b7f2a;
+}
+
+.media-album-av-autocreate-status.is-impossible {
+  color: #b42318;
+}

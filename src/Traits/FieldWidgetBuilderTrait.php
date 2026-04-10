@@ -179,10 +179,25 @@ trait FieldWidgetBuilderTrait {
 
     $target_type = $field_config->getSetting('target_type') ?? 'taxonomy_term';
     $handler_settings = $field_config->getSetting('handler_settings') ?? [];
-    $target_bundles = $handler_settings['target_bundles'] ?? [];
+    // Use !empty() because [] = "no bundles allowed" in Drupal's DefaultSelection,
+    // while NULL = "all bundles allowed". The ?? NULL operator doesn't catch [].
+    $target_bundles = !empty($handler_settings['target_bundles']) ? $handler_settings['target_bundles'] : NULL;
 
     // For taxonomy terms, use entity_autocomplete.
     if ($target_type === 'taxonomy_term') {
+      // Load the entity to ensure it exists and pass the entity object
+      // or NULL if it doesn't exist. Don't pass raw IDs which can cause validation errors.
+      $default_entity = NULL;
+      if ($default_value) {
+        try {
+          $default_entity = $this->getEntityTypeManager()->getStorage($target_type)->load($default_value);
+        }
+        catch (\Exception $e) {
+          // If entity doesn't exist or can't be loaded, use NULL
+          $default_entity = NULL;
+        }
+      }
+
       return [
         '#type' => 'entity_autocomplete',
         '#target_type' => $target_type,
@@ -190,12 +205,24 @@ trait FieldWidgetBuilderTrait {
         '#selection_settings' => [
           'target_bundles' => $target_bundles,
         ],
-        '#default_value' => $default_value ?
-        $this->getEntityTypeManager()->getStorage($target_type)->load($default_value) : NULL,
+        '#default_value' => $default_entity,
       ];
     }
 
     // For other entity types (nodes, media, etc.).
+    // Load the entity to ensure it exists and pass the entity object
+    // or NULL if it doesn't exist.
+    $default_entity = NULL;
+    if ($default_value) {
+      try {
+        $default_entity = $this->getEntityTypeManager()->getStorage($target_type)->load($default_value);
+      }
+      catch (\Exception $e) {
+        // If entity doesn't exist or can't be loaded, use NULL
+        $default_entity = NULL;
+      }
+    }
+
     return [
       '#type' => 'entity_autocomplete',
       '#target_type' => $target_type,
@@ -203,8 +230,7 @@ trait FieldWidgetBuilderTrait {
       '#selection_settings' => [
         'target_bundles' => $target_bundles,
       ],
-      '#default_value' => $default_value ?
-      $this->getEntityTypeManager()->getStorage($target_type)->load($default_value) : NULL,
+      '#default_value' => $default_entity,
     ];
   }
 

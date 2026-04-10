@@ -1,0 +1,83 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the media_album_av_common module.
+ */
+
+use Drupal\taxonomy\Entity\Vocabulary;
+use Drupal\taxonomy\Entity\Term;
+
+
+/**
+ * Implements hook_uninstall().
+ *
+ * Removes vocabularies and terms created by this module.
+ *
+ * NOTE: Currently disabled to prevent accidentally breaking the site.
+ * If you want to clean up taxonomies, run the cleanup script instead.
+ */
+/*
+function media_album_av_common_uninstall() {
+  // Remove vocabularies created by this module.
+  $vocabularies = [
+    'media_album_av_authors',
+    'media_album_av_category',
+    'media_album_av_event',
+    'media_album_av_folders',
+  ];
+
+  foreach ($vocabularies as $machine_name) {
+    $vocabulary = Vocabulary::load($machine_name);
+
+    if ($vocabulary) {
+      $vocabulary->delete();
+
+      \Drupal::logger('media_album_av_common')->info(
+        'Deleted vocabulary: @machine_name',
+        ['@machine_name' => $machine_name]
+      );
+    }
+  }
+}
+*/
+
+/**
+ * Implements hook_modules_installed().
+ */
+function media_album_av_common_modules_installed($modules) {
+  if (in_array('media_album_av_common', $modules)) {
+    _media_album_av_common_create_default_terms();
+  }
+
+  // Configurer Media Directories.
+    $config = \Drupal::configFactory()->getEditable('media_directories.settings');
+    if ($config && !$config->isNew()) {
+      $config->set('directory_taxonomy', 'media_album_av_folders')->save();
+    }
+
+}
+
+function _media_album_av_common_create_default_terms() {
+  $vocab = \Drupal\taxonomy\Entity\Vocabulary::load('media_album_av_folders');
+  if (!$vocab) return;
+
+  $default_terms = [
+    'Media_Album' => 'Media Album folder',
+    'Media_Drop'  => 'Media Drop folder',
+  ];
+
+  foreach ($default_terms as $name => $description) {
+    $query = \Drupal::entityQuery('taxonomy_term')
+      ->condition('vid', 'media_album_av_folders')
+      ->condition('name', $name)
+      ->accessCheck(FALSE);
+    if (empty($query->execute())) {
+      \Drupal\taxonomy\Entity\Term::create([
+        'vid'         => 'media_album_av_folders',
+        'name'        => $name,
+        'description' => $description,
+      ])->save();
+    }
+  }
+}

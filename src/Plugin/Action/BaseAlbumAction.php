@@ -305,6 +305,7 @@ abstract class BaseAlbumAction extends ConfigurableActionBase implements Contain
       'library' => [
         'core/drupal.autocomplete',
         'core/drupal.form-states',
+        'media_album_av_common/action-config-status',
       ],
     ];
 

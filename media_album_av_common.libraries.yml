@@ -65,4 +65,10 @@ draggable-flexgrid:
     - core/drupal
     - core/once
 
+action-config-status:
+  version: 1.x
+  css:
+    theme:
+      css/action-config-status.css: {}
+
 

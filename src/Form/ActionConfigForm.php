@@ -162,7 +162,7 @@ class ActionConfigForm extends FormBase {
     $user_input = $form_state->getUserInput();
 
     // Premier chargement : récupérer depuis les args.
-    if (!$user_input['action_data_flag']) {
+    if (empty($user_input['action_data_flag'])) {
       $user_input['action_id'] = $build_info['args'][0] ?? NULL;
       $user_input['album_grp'] = $build_info['args'][1] ?? NULL;
       $user_input['prepared_data'] = json_encode($build_info['args'][2] ?? []);
@@ -382,7 +382,7 @@ class ActionConfigForm extends FormBase {
             ));
           }
 
-          // Fermer la modal EN DERNIER après tous les triggers et settings
+          // Fermer la modal EN DERNIER après tous les triggers et settings.
           $response->addCommand(new CloseModalDialogCommand());
         }
 
@@ -618,7 +618,7 @@ class ActionConfigForm extends FormBase {
       ];
     }
 
-    // Récupérer les entités médias
+    // Récupérer les entités médias.
     $entities = [];
     foreach ($data['selected_items'] as $item) {
       if (!empty($item['media_id'])) {
@@ -638,26 +638,26 @@ class ActionConfigForm extends FormBase {
       ];
     }
 
-    // Récupérer la configuration EXIF du formulaire
+    // Récupérer la configuration EXIF du formulaire.
     $auto_create_fields = $values['exif_config']['auto_create_fields'] ?? FALSE;
     $exif_keys = $values['exif_config']['exif_keys'] ?? [];
-    
+
     // Filter out unchecked values (checkboxes return 0 for unchecked items)
     $exif_keys = array_filter($exif_keys);
-    
-    // If no keys selected, we'll use empty array and let executeMultiple use defaults
-    \Drupal::logger('media_drop')->info('EXIF keys from form: @keys', 
+
+    // If no keys selected, we'll use empty array and let executeMultiple use defaults.
+    \Drupal::logger('media_drop')->info('EXIF keys from form: @keys',
       ['@keys' => empty($exif_keys) ? 'EMPTY' : implode(', ', $exif_keys)]
     );
 
-    // Créer l'instance de l'action avec la configuration
+    // Créer l'instance de l'action avec la configuration.
     $action = $action_manager->createInstance($action_id, [
       'auto_create_fields' => $auto_create_fields,
       'exif_keys' => $exif_keys,
       'album_grp' => $values['album_grp'] ?? NULL,
     ]);
 
-    // Exécuter l'action
+    // Exécuter l'action.
     return $action->executeMultiple(['entities' => $entities]);
   }
 
@@ -1585,49 +1585,65 @@ class ActionConfigForm extends FormBase {
         continue;
       }
 
+      // Cas 1 : Drupal a déjà créé l'entité non sauvegardée via autocreate natif
+      // (widget entity_autocomplete sans #tags → stocke ['entity' => TermObject]).
+      // On la sauvegarde directement sans vérifier should_autocreate.
+      if (is_array($raw_value)) {
+        $first_item = reset($raw_value);
+        $has_entity = ($first_item instanceof EntityInterface)
+          || (is_array($first_item) && isset($first_item['entity']) && $first_item['entity'] instanceof EntityInterface);
+        if ($has_entity) {
+          $resolved_id = $this->resolveTermValue($raw_value, '');
+          if ($resolved_id) {
+            $field_data['value'] = $resolved_id;
+          }
+          continue;
+        }
+      }
+
+      // Cas 2 : valeur textuelle → nécessite vocabulaire + autorisation autocreate.
       foreach ($field_data['field_names'] as $field_name) {
-        // Chercher si ce field_name est un champ catégorie avec autocreate.
         foreach ($media_types as $media_type_id => $media_type) {
-          $category_config = $config->get('category_fields.' . $media_type_id);
-          if (!$category_config || ($category_config['field_name'] ?? '') !== $field_name) {
+          $vocabulary_id = NULL;
+          $should_autocreate = FALSE;
+
+          // Vérifier category_fields ET author_fields.
+          foreach (['category_fields', 'author_fields'] as $config_key) {
+            $field_cfg = $config->get($config_key . '.' . $media_type_id);
+            if ($field_cfg && ($field_cfg['field_name'] ?? '') === $field_name) {
+              $should_autocreate = (bool) ($field_cfg['autocreate'] ?? FALSE);
+
+              $field_config = $this->entityTypeManager
+                ->getStorage('field_config')
+                ->load('media.' . $media_type_id . '.' . $field_name);
+
+              if ($field_config) {
+                $handler_settings = $field_config->getSetting('handler_settings') ?? [];
+                // [] = "no bundles" en Drupal — utiliser !empty() pour traiter [] comme NULL.
+                $target_bundles = !empty($handler_settings['target_bundles']) ? $handler_settings['target_bundles'] : NULL;
+                $vocabulary_id = $target_bundles
+                  ? array_key_first($target_bundles)
+                  : (($handler_settings['auto_create_bundle'] ?? NULL) ?: NULL);
+              }
+              break;
+            }
+          }
+          if (!$vocabulary_id || !$should_autocreate) {
             continue;
           }
-          if (empty($category_config['autocreate'])) {
-            break;
-          }
 
-          // Charger la field_config pour obtenir le vocabulary_id.
-          $field_config = $this->entityTypeManager
-            ->getStorage('field_config')
-            ->load('media.' . $media_type_id . '.' . $field_name);
-
-          if (!$field_config) {
-            break;
-          }
-
-          $handler_settings = $field_config->getSetting('handler_settings') ?? [];
-          $target_bundles   = $handler_settings['target_bundles'] ?? [];
-          $vocabulary_id    = !empty($target_bundles) ? array_key_first($target_bundles) : NULL;
-
-          if (!$vocabulary_id) {
-            break;
-          }
-
-          // Résoudre la valeur selon son format.
           $resolved_id = $this->resolveTermValue($raw_value, $vocabulary_id);
-
           if ($resolved_id) {
             $field_data['value'] = $resolved_id;
             \Drupal::logger('media_drop')->info(
-            'Autocreate: terme résolu "@val" → ID @id (vocab: @vocab)',
-            [
-              '@val' => is_string($raw_value) ? $raw_value : json_encode($raw_value),
-              '@id' => $resolved_id,
-              '@vocab' => $vocabulary_id,
-            ]
+              'Autocreate: terme résolu "@val" → ID @id (vocab: @vocab)',
+              [
+                '@val'   => is_string($raw_value) ? $raw_value : json_encode($raw_value),
+                '@id'    => $resolved_id,
+                '@vocab' => $vocabulary_id,
+              ]
             );
           }
-          // Un seul media type peut correspondre à ce field_name.
           break;
         }
       }

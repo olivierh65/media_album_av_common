@@ -46,6 +46,9 @@ $DRUSH -y config:set media_directories.settings directory_taxonomy "" 2>/dev/nul
   || echo "⚠ Impossible de modifier media_directories.settings"
 
 echo "=== ÉTAPE 4 : Suppression des taxonomies ==="
+# Suppression des termes
+$DRUSH sql-query "DELETE FROM drupal_taxonomy_term_field_data WHERE vid IN ('media_album_av_folders', 'media_album_av_event');"
+$DRUSH sql-query "DELETE FROM drupal_taxonomy_term_data WHERE vid IN ('media_album_av_folders', 'media_album_av_event');"
 # Suppression des vocabulaires via l'API Drupal
 $DRUSH eval "
 \$vocabularies = ['media_album_av_authors', 'media_album_av_category', 'media_album_av_event', 'media_album_av_folders'];

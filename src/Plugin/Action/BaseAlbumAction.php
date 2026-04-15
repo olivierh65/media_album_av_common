@@ -763,24 +763,41 @@ abstract class BaseAlbumAction extends ConfigurableActionBase implements Contain
             continue;
           }
 
+          $target_ids = [];
           foreach ($referenced_items as $item) {
-            $referenced_entity_id = $item->target_id;
-            if (!$referenced_entity_id) {
-              continue;
+            if (!empty($item->target_id)) {
+              $target_ids[] = (int) $item->target_id;
             }
+          }
 
-            // Load the referenced entity.
-            $media_item = $this->entityTypeManager->getStorage($target_type)->load($referenced_entity_id);
-            if (!$media_item) {
-              \Drupal::logger('media_album_av')->warning('Referenced entity ID @id in field @field could not be loaded.', [
-                '@id' => $referenced_entity_id,
+          if (empty($target_ids)) {
+            continue;
+          }
+
+          $target_ids = array_values(array_unique($target_ids));
+          $loaded_items = $this->entityTypeManager
+            ->getStorage($target_type)
+            ->loadMultiple($target_ids);
+
+          $missing_ids = [];
+          foreach ($target_ids as $referenced_entity_id) {
+            if (isset($loaded_items[$referenced_entity_id])) {
+              $existing_media[$referenced_entity_id] = $loaded_items[$referenced_entity_id]->label();
+            }
+            else {
+              $missing_ids[] = $referenced_entity_id;
+            }
+          }
+
+          if (!empty($missing_ids)) {
+            \Drupal::logger('media_album_av')->warning(
+              'Missing referenced entities in field @field: @count item(s), IDs: @ids',
+              [
                 '@field' => $field_name,
-              ]);
-              continue;
-            }
-
-            $existing_media[$referenced_entity_id] = $media_item->label();
-
+                '@count' => count($missing_ids),
+                '@ids' => implode(', ', $missing_ids),
+              ]
+            );
           }
         }
       }

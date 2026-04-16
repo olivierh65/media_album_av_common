@@ -81,9 +81,81 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
       return $element;
     }
 
+    $caption_field_options = $this->getCaptionFieldOptions();
+    $media_caption_field_options = $this->getMediaCaptionFieldOptions($form_state);
+    $default_caption_field =
+      \Drupal::config('media_album_av.settings')->get('caption_field')
+      ?? 'field_media_album_av_description';
+    // Build a map field_name => type|field_name for backward-compat lookup.
+    $caption_field_name_map = [];
+    foreach (array_keys($caption_field_options) as $key) {
+      $parts = explode('|', $key, 2);
+      $caption_field_name_map[$parts[1]] = $key;
+    }
+    $media_caption_field_name_map = [];
+    foreach (array_keys($media_caption_field_options) as $key) {
+      $parts = explode('|', $key, 2);
+      $media_caption_field_name_map[$parts[1]] = $key;
+    }
+    $selected_caption_field = $caption_field_name_map[$default_caption_field] ?? '';
+    $selected_media_caption_field = '';
+
+    foreach ($items as $item) {
+      if (empty($item->value)) {
+        continue;
+      }
+      $config_data = json_decode($item->value, TRUE);
+      if (!empty($config_data['caption_field'])) {
+        $stored = $config_data['caption_field'];
+        // Accept new format (type|name) or legacy (name only).
+        if (isset($caption_field_options[$stored])) {
+          $selected_caption_field = $stored;
+        }
+        elseif (isset($caption_field_name_map[$stored])) {
+          $selected_caption_field = $caption_field_name_map[$stored];
+        }
+      }
+
+      if (!empty($config_data['media_caption_field'])) {
+        $stored_media = $config_data['media_caption_field'];
+        // Accept new format (type|name) or legacy (name only).
+        if (isset($media_caption_field_options[$stored_media])) {
+          $selected_media_caption_field = $stored_media;
+        }
+        elseif (isset($media_caption_field_name_map[$stored_media])) {
+          $selected_media_caption_field = $media_caption_field_name_map[$stored_media];
+        }
+      }
+
+      if (!empty($selected_caption_field) && !empty($selected_media_caption_field)) {
+        break;
+      }
+    }
+
+    $element['caption_field'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Cover caption field'),
+      '#options' => ['' => $this->t('- None -')] + $caption_field_options,
+      '#default_value' => isset($caption_field_options[$selected_caption_field])
+        ? $selected_caption_field
+        : '',
+      '#description' => $this->t('Select the node field used as caption for the cover image only.'),
+    ];
+
+    $element['media_caption_field'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Media caption field'),
+      '#options' => ['' => $this->t('- None -')] + $media_caption_field_options,
+      '#default_value' => isset($media_caption_field_options[$selected_media_caption_field])
+        ? $selected_media_caption_field
+        : '',
+      '#description' => $this->t('Select the media field used as caption for album medias.'),
+    ];
+
     $element['grouping_fieldset'] = [
-      '#type' => 'fieldset',
+      '#type' => 'details',
       '#title' => $this->t('Define grouping hierarchy'),
+      '#open' => TRUE,
       '#element_validate' => [[static::class, 'validateGroupingFieldset']],
     ];
 
@@ -302,7 +374,117 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
         $result[] = ['value' => json_encode($storage)];
       }
     }
+
+    $caption_field = $values['caption_field'] ?? '';
+    if (!empty($caption_field)) {
+      $result[] = ['value' => json_encode(['caption_field' => $caption_field])];
+    }
+
+    $media_caption_field = $values['media_caption_field'] ?? '';
+    if (!empty($media_caption_field)) {
+      $result[] = ['value' => json_encode(['media_caption_field' => $media_caption_field])];
+    }
+
     return $result;
+  }
+
+  /**
+   * Get caption field options from the current node bundle.
+   *
+   * @return array
+   *   Array of eligible text fields.
+   */
+  protected function getCaptionFieldOptions(): array {
+    $options = [];
+
+    try {
+      $bundle = $this->fieldDefinition->getTargetBundle() ?: 'media_album_av';
+      $field_definitions = \Drupal::service('entity_field.manager')
+        ->getFieldDefinitions('node', $bundle);
+
+      foreach ($field_definitions as $field_name => $field_def) {
+        $field_type = $field_def->getType();
+        if (in_array($field_type, ['string', 'string_long', 'text', 'text_long', 'text_with_summary', 'datetime', 'daterange', 'timestamp', 'created', 'changed', 'entity_reference']) && ($field_type !== 'entity_reference' || $field_def->getSetting('target_type') === 'taxonomy_term')) {
+          $options[$field_type . '|' . $field_name] = $field_def->getLabel() ?: $field_name;
+        }
+      }
+    }
+    catch (\Exception $e) {
+      \Drupal::logger('media_album_av_common')->warning(
+        'Error while loading caption field options: @message',
+        ['@message' => $e->getMessage()]
+      );
+    }
+
+    return $options;
+  }
+
+  /**
+   * Get media caption field options from accepted media types on this node.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   *
+   * @return array
+   *   Array of eligible fields keyed by "type|field_name".
+   */
+  protected function getMediaCaptionFieldOptions(FormStateInterface $form_state): array {
+    $options = [];
+
+    try {
+      $form_object = $form_state->getFormObject();
+      if (!$form_object || !method_exists($form_object, 'getEntity')) {
+        return $options;
+      }
+      $entity = $form_object->getEntity();
+      if (!$entity || $entity->getEntityTypeId() !== 'node') {
+        return $options;
+      }
+
+      $field_manager = \Drupal::service('entity_field.manager');
+      $node_fields = $field_manager->getFieldDefinitions('node', $entity->bundle());
+      $media_types = [];
+
+      // Collect all accepted media bundles from node media reference fields.
+      foreach ($node_fields as $field_def) {
+        if ($field_def->getType() === 'entity_reference'
+          && $field_def->getSetting('target_type') === 'media') {
+          $handler_settings = $field_def->getSetting('handler_settings') ?? [];
+          foreach (($handler_settings['target_bundles'] ?? []) as $media_bundle) {
+            $media_types[$media_bundle] = $media_bundle;
+          }
+        }
+      }
+
+      if (empty($media_types)) {
+        return $options;
+      }
+
+      foreach ($media_types as $media_bundle) {
+        $media_fields = $field_manager->getFieldDefinitions('media', $media_bundle);
+        foreach ($media_fields as $field_name => $field_def) {
+          $field_type = $field_def->getType();
+          $is_text = in_array($field_type, ['string', 'string_long', 'text', 'text_long', 'text_with_summary']);
+          $is_date = in_array($field_type, ['datetime', 'daterange', 'timestamp', 'created', 'changed']);
+          $is_taxo = $field_type === 'entity_reference' && $field_def->getSetting('target_type') === 'taxonomy_term';
+
+          if ($is_text || $is_date || $is_taxo) {
+            $option_key = $field_type . '|' . $field_name;
+            if (!isset($options[$option_key])) {
+              $options[$option_key] = $field_def->getLabel() ?: $field_name;
+            }
+          }
+        }
+      }
+    }
+    catch (\Exception $e) {
+      \Drupal::logger('media_album_av_common')->warning(
+        'Error while loading media caption field options: @message',
+        ['@message' => $e->getMessage()]
+      );
+    }
+
+    return $options;
   }
 
   /**

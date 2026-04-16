@@ -253,6 +253,69 @@ class AlbumGroupingConfigService {
   }
 
   /**
+   * Get the caption field configuration stored on an album node.
+   *
+   * Reads the grouping config field JSON items and returns the value of the
+   * first item that contains a 'caption_field' key.
+   *
+   * @param \Drupal\node\NodeInterface $album_node
+   *   The album node.
+   *
+   * @return string
+   *   The caption field config value, e.g. "string_long|field_title", or ''
+   *   if not set.
+   */
+  public function getNodeCaptionFieldConfig(NodeInterface $album_node): string {
+    $config = \Drupal::config('media_album_av.settings');
+    $grouping_field = $config->get('grouping_config_field') ?? 'field_media_album_av_grouping';
+
+    if (!$album_node->hasField($grouping_field)) {
+      return '';
+    }
+
+    foreach ($album_node->get($grouping_field) as $item) {
+      $data = json_decode($item->value ?? '', TRUE);
+      if (!empty($data['caption_field'])) {
+        return (string) $data['caption_field'];
+      }
+    }
+
+    // Fallback to global settings.
+    return (string) ($config->get('caption_field') ?? '');
+  }
+
+  /**
+   * Get the media caption field configuration stored on an album node.
+   *
+   * Reads the grouping config field JSON items and returns the value of the
+   * first item that contains a 'media_caption_field' key.
+   *
+   * @param \Drupal\node\NodeInterface $album_node
+   *   The album node.
+   *
+   * @return string
+   *   The media caption field config value, e.g. "text_long|field_desc", or
+   *   '' if not set.
+   */
+  public function getNodeMediaCaptionFieldConfig(NodeInterface $album_node): string {
+    $config = \Drupal::config('media_album_av.settings');
+    $grouping_field = $config->get('grouping_config_field') ?? 'field_media_album_av_grouping';
+
+    if (!$album_node->hasField($grouping_field)) {
+      return '';
+    }
+
+    foreach ($album_node->get($grouping_field) as $item) {
+      $data = json_decode($item->value ?? '', TRUE);
+      if (!empty($data['media_caption_field'])) {
+        return (string) $data['media_caption_field'];
+      }
+    }
+
+    return '';
+  }
+
+  /**
    * Get a human-readable summary of the grouping hierarchy.
    *
    * @param \Drupal\node\NodeInterface $album_node

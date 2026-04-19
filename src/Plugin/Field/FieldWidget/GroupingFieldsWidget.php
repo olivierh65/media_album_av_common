@@ -11,6 +11,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\media_album_av_common\Service\AlbumGroupingFieldsService;
 use Drupal\media_album_av_common\Service\DirectoryService;
 use Drupal\Component\Utility\NestedArray;
+use Drupal\image\Entity\ImageStyle;
 
 /**
  * Plugin implementation of the 'grouping_fields_widget'.
@@ -83,6 +84,7 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
 
     $caption_field_options = $this->getCaptionFieldOptions();
     $media_caption_field_options = $this->getMediaCaptionFieldOptions($form_state);
+    $image_style_options = $this->getImageStyleOptions();
     $default_caption_field =
       \Drupal::config('media_album_av.settings')->get('caption_field')
       ?? 'field_media_album_av_description';
@@ -99,6 +101,8 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
     }
     $selected_caption_field = $caption_field_name_map[$default_caption_field] ?? '';
     $selected_media_caption_field = '';
+    $selected_image_style = $this->getDefaultImageStyle($image_style_options);
+    $selected_thumbnail_style = $this->getDefaultThumbnailStyle($image_style_options);
 
     foreach ($items as $item) {
       if (empty($item->value)) {
@@ -127,8 +131,12 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
         }
       }
 
-      if (!empty($selected_caption_field) && !empty($selected_media_caption_field)) {
-        break;
+      if (!empty($config_data['image_style']) && isset($image_style_options[$config_data['image_style']])) {
+        $selected_image_style = (string) $config_data['image_style'];
+      }
+
+      if (array_key_exists('thumbnail_style', $config_data) && isset($image_style_options[$config_data['thumbnail_style']])) {
+        $selected_thumbnail_style = (string) $config_data['thumbnail_style'];
       }
     }
 
@@ -150,6 +158,22 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
         ? $selected_media_caption_field
         : '',
       '#description' => $this->t('Select the media field used as caption for album medias.'),
+    ];
+
+    $element['image_style'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Image style'),
+      '#options' => ['' => $this->t('- None -')] + $image_style_options,
+      '#default_value' => isset($image_style_options[$selected_image_style]) ? $selected_image_style : '',
+      '#description' => $this->t('Style applied to full-size images in the album gallery.'),
+    ];
+
+    $element['thumbnail_style'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Thumbnail style'),
+      '#options' => ['' => $this->t('- None -')] + $image_style_options,
+      '#default_value' => isset($image_style_options[$selected_thumbnail_style]) ? $selected_thumbnail_style : '',
+      '#description' => $this->t('Style applied to thumbnails in the album gallery.'),
     ];
 
     $element['grouping_fieldset'] = [
@@ -385,7 +409,68 @@ class GroupingFieldsWidget extends WidgetBase implements ContainerFactoryPluginI
       $result[] = ['value' => json_encode(['media_caption_field' => $media_caption_field])];
     }
 
+    if (array_key_exists('image_style', $values)) {
+      $image_style = $values['image_style'] ?? '';
+      $result[] = ['value' => json_encode(['image_style' => $image_style])];
+    }
+
+    if (array_key_exists('thumbnail_style', $values)) {
+      $thumbnail_style = $values['thumbnail_style'] ?? '';
+      $result[] = ['value' => json_encode(['thumbnail_style' => $thumbnail_style])];
+    }
+
     return $result;
+  }
+
+  /**
+   * Get available image style options.
+   *
+   * @return array
+   *   Array of image style options keyed by style ID.
+   */
+  protected function getImageStyleOptions(): array {
+    $options = [];
+
+    foreach (ImageStyle::loadMultiple() as $style) {
+      $options[$style->id()] = $style->label();
+    }
+
+    return $options;
+  }
+
+  /**
+   * Resolve the default full image style.
+   *
+   * @param array $image_style_options
+   *   Available image style options.
+   *
+   * @return string
+   *   The default style ID or empty string.
+   */
+  protected function getDefaultImageStyle(array $image_style_options): string {
+    if (isset($image_style_options['media_album_av'])) {
+      return 'media_album_av';
+    }
+    return '';
+  }
+
+  /**
+   * Resolve the default thumbnail style.
+   *
+   * @param array $image_style_options
+   *   Available image style options.
+   *
+   * @return string
+   *   The default style ID or empty string.
+   */
+  protected function getDefaultThumbnailStyle(array $image_style_options): string {
+    if (isset($image_style_options['medium'])) {
+      return 'medium';
+    }
+    if (isset($image_style_options['thumbnail'])) {
+      return 'thumbnail';
+    }
+    return '';
   }
 
   /**

@@ -2174,14 +2174,31 @@ abstract class BaseAlbumAction extends ConfigurableActionBase implements Contain
    */
   protected function resolveAutocreateValue($raw_value, $field_config) {
     // Cas 1 : tableau avec une entité non sauvegardée (autocreate Drupal natif).
-    if (is_array($raw_value) && isset($raw_value[0]['entity'])) {
-      $entity = $raw_value[0]['entity'];
-      if ($entity instanceof EntityInterface && $entity->isNew()) {
-        $entity->save();
-        return $entity->id();
+    // Le widget peut renvoyer soit :
+    // - [0 => ['entity' => Term, 'target_id' => ...]]
+    // - ['entity' => Term, 'target_id' => ...]
+    if (is_array($raw_value)) {
+      $entity = NULL;
+      $target_id = NULL;
+
+      if (isset($raw_value[0]) && is_array($raw_value[0])) {
+        $entity = $raw_value[0]['entity'] ?? NULL;
+        $target_id = $raw_value[0]['target_id'] ?? NULL;
       }
-      if (isset($raw_value[0]['target_id']) && is_numeric($raw_value[0]['target_id'])) {
-        return (int) $raw_value[0]['target_id'];
+      else {
+        $entity = $raw_value['entity'] ?? NULL;
+        $target_id = $raw_value['target_id'] ?? NULL;
+      }
+
+      if ($entity instanceof EntityInterface) {
+        if ($entity->isNew()) {
+          $entity->save();
+        }
+        return (int) $entity->id();
+      }
+
+      if (is_numeric($target_id)) {
+        return (int) $target_id;
       }
     }
 

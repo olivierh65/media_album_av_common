@@ -2172,7 +2172,7 @@ abstract class BaseAlbumAction extends ConfigurableActionBase implements Contain
    * @return mixed
    *   L'ID du terme (int), ou la valeur originale si aucun traitement nécessaire.
    */
-  protected function ___resolveAutocreateValue($raw_value, $field_config) {
+  protected function resolveAutocreateValue($raw_value, $field_config) {
     // Cas 1 : tableau avec une entité non sauvegardée (autocreate Drupal natif).
     if (is_array($raw_value) && isset($raw_value[0]['entity'])) {
       $entity = $raw_value[0]['entity'];

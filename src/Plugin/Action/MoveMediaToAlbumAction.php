@@ -1109,41 +1109,5 @@ class MoveMediaToAlbumAction extends BaseAlbumAction {
     return $directories;
   }
 
-  /**
-   *
-   */
-  protected function isAutocreateVocabulary(string $vocabulary_id, string $field_name): bool {
-    $config = \Drupal::config('media_album_av.settings');
-
-    // Parcourir tous les media types configurés.
-    $media_types = $this->entityTypeManager
-      ->getStorage('media_type')
-      ->loadMultiple();
-
-    foreach ($media_types as $media_type_id => $media_type) {
-      // Vérifier d'abord les category_fields.
-      $category_config = $config->get('category_fields.' . $media_type_id);
-      if ($category_config) {
-        // Si ce field_name correspond au champ catégorie configuré
-        // pour ce media type → retourner le flag autocreate.
-        if (($category_config['field_name'] ?? '') === $field_name) {
-          return (bool) ($category_config['autocreate'] ?? FALSE);
-        }
-      }
-
-      // Vérifier ensuite les author_fields.
-      $author_config = $config->get('author_fields.' . $media_type_id);
-      if ($author_config) {
-        // Si ce field_name correspond au champ auteur configuré
-        // pour ce media type → retourner le flag autocreate.
-        if (($author_config['field_name'] ?? '') === $field_name) {
-          return (bool) ($author_config['autocreate'] ?? FALSE);
-        }
-      }
-    }
-
-    // Par défaut : pas d'autocreate.
-    return FALSE;
-  }
-
 }
+

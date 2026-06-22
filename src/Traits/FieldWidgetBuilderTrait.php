@@ -25,7 +25,7 @@ trait FieldWidgetBuilderTrait {
    * @return array
    *   Form element for the field.
    */
-  protected function buildFieldWidget($field_config, int|null $default_value = NULL, array $additional_options = []) {
+  protected function buildFieldWidget($field_config, int|array|null $default_value = NULL, array $additional_options = []) {
     $field_type = $this->getFieldType($field_config);
     $field_label = $this->getFieldLabel($field_config);
 
@@ -190,10 +190,10 @@ trait FieldWidgetBuilderTrait {
       $default_entity = NULL;
       if ($default_value) {
         try {
-          $default_entity = $this->getEntityTypeManager()->getStorage($target_type)->load($default_value);
+          $default_entity = $this->getEntityTypeManager()->getStorage($target_type)->load($default_value[0]['target_id'] ?? NULL);
         }
         catch (\Exception $e) {
-          // If entity doesn't exist or can't be loaded, use NULL
+          // If entity doesn't exist or can't be loaded, use NULL.
           $default_entity = NULL;
         }
       }
@@ -218,7 +218,7 @@ trait FieldWidgetBuilderTrait {
         $default_entity = $this->getEntityTypeManager()->getStorage($target_type)->load($default_value);
       }
       catch (\Exception $e) {
-        // If entity doesn't exist or can't be loaded, use NULL
+        // If entity doesn't exist or can't be loaded, use NULL.
         $default_entity = NULL;
       }
     }

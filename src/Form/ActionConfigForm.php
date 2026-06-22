@@ -455,11 +455,74 @@ class ActionConfigForm extends FormBase {
 
       break;
 
+      case 'media_drop_bulk_edit':
+        return $this->doBulkEdit($action_id, $values, $response, $action_manager);
+
+      break;
+
       default:
         $response['status'] = 'error';
         $response['response'][] = new MessageCommand($this->t('Unknown action.'), NULL, ['type' => 'error']);
     }
     return $response;
+  }
+
+  /**
+   * Exécute l'action d'édition en masse sur les médias sélectionnés.
+   */
+  private function doBulkEdit($action_id, $values, $response, $action_manager) {
+    $data = json_decode($values['prepared_data'], TRUE);
+
+    if (empty($data['selected_items'])) {
+      return [
+        'status'   => 'warning',
+        'response' => [new MessageCommand($this->t('No media selected.'), NULL, ['type' => 'warning'])],
+      ];
+    }
+
+    // Récupérer les entités médias.
+    $entities = [];
+    foreach ($data['selected_items'] as $item) {
+      if (!empty($item['media_id'])) {
+        $media = $this->entityTypeManager
+          ->getStorage('media')
+          ->load($item['media_id']);
+        if ($media) {
+          $entities[$media->id()] = $media;
+        }
+      }
+    }
+
+    if (empty($entities)) {
+      return [
+        'status'   => 'warning',
+        'response' => [new MessageCommand($this->t('No valid media found to process.'), NULL, ['type' => 'warning'])],
+      ];
+    }
+
+    // Extraire les modifications de champs depuis les valeurs du formulaire.
+    // La clé 'fields' correspond à $form['fields'] dans BulkEditMediaAction.
+    $field_values = [];
+    $clear_fields = [];
+    foreach ($values['fields'] ?? [] as $field_name => $field_data) {
+      $toggles = $field_data['toggles'] ?? [];
+      if (!empty($toggles['clear'])) {
+        $clear_fields[] = $field_name;
+      }
+      elseif (!empty($toggles['modify'])) {
+        $field_values[$field_name] = $field_data['value'] ?? NULL;
+      }
+    }
+
+    // Créer l'instance du plugin avec la configuration correcte.
+    $action = $action_manager->createInstance($action_id, [
+      'field_values' => $field_values,
+      'clear_fields' => $clear_fields,
+      'album_grp'    => $values['album_grp'] ?? NULL,
+    ]);
+
+    // Exécuter l'action.
+    return $action->executeMultiple($entities);
   }
 
   /**

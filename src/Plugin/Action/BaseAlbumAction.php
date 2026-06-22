@@ -2090,6 +2090,78 @@ abstract class BaseAlbumAction extends ConfigurableActionBase implements Contain
   }
 
   /**
+   * Applique une valeur brute de formulaire à un champ d'une entité media.
+   *
+   * Gère les champs entity_reference (taxonomie avec autocreate, autres),
+   * boolean, et les types simples. Utilisé par BulkEditMediaAction::execute().
+   *
+   * @param \Drupal\Core\Entity\FieldableEntityInterface $media
+   *   L'entité cible.
+   * @param string $field_name
+   *   Le nom du champ à mettre à jour.
+   * @param mixed $raw_value
+   *   La valeur brute issue du formulaire.
+   */
+  protected function applySingleFieldValueToMedia($media, string $field_name, $raw_value): void {
+    if (!$media->hasField($field_name)) {
+      return;
+    }
+
+    if ($raw_value === NULL || $raw_value === '' || $raw_value === []) {
+      return;
+    }
+
+    $field_definition = $media->getFieldDefinition($field_name);
+    $field_type = $field_definition->getType();
+
+    switch ($field_type) {
+      case 'entity_reference':
+        $target_type = $field_definition->getSetting('target_type');
+
+        if ($target_type === 'taxonomy_term') {
+          // Déléguer la résolution (autocreate natif, "Label (ID)", string label, ID numérique).
+          $resolved = $this->resolveAutocreateValue($raw_value, $field_definition);
+
+          if (is_int($resolved) && $resolved > 0) {
+            $media->set($field_name, ['target_id' => $resolved]);
+          }
+          elseif (is_numeric($resolved) && (int) $resolved > 0) {
+            $media->set($field_name, ['target_id' => (int) $resolved]);
+          }
+          elseif (is_array($resolved) && isset($resolved['target_id'])) {
+            $media->set($field_name, $resolved);
+          }
+          // Si $resolved est toujours une string non résolue, on l'ignore
+          // pour éviter une erreur de contrainte d'intégrité référentielle.
+        }
+        else {
+          // Autre entity_reference : accepter target_id direct ou format "id|label".
+          if (is_array($raw_value) && isset($raw_value['target_id'])) {
+            $media->set($field_name, $raw_value);
+          }
+          else {
+            $target_id = $raw_value;
+            if (is_string($raw_value) && strpos($raw_value, '|') !== FALSE) {
+              [$target_id] = explode('|', $raw_value, 2);
+            }
+            if (is_numeric($target_id) && (int) $target_id > 0) {
+              $media->set($field_name, ['target_id' => (int) $target_id]);
+            }
+          }
+        }
+        break;
+
+      case 'boolean':
+        $media->set($field_name, (bool) $raw_value);
+        break;
+
+      default:
+        $media->set($field_name, $raw_value);
+        break;
+    }
+  }
+
+  /**
    * Extrait et sauvegarde un terme autocreate depuis une valeur de widget entity_reference.
    *
    * @param mixed $raw_value
@@ -2130,6 +2202,36 @@ abstract class BaseAlbumAction extends ConfigurableActionBase implements Contain
     }
 
     return $raw_value;
+  }
+
+  /**
+   * Vérifie si l'autocreate est activé pour un vocabulaire/champ donné.
+   *
+   * @param string $vocabulary_id
+   *   L'identifiant du vocabulaire taxonomique.
+   * @param string $field_name
+   *   Le nom du champ.
+   *
+   * @return bool
+   *   TRUE si l'autocreate est activé pour ce champ.
+   */
+  protected function isAutocreateVocabulary(string $vocabulary_id, string $field_name): bool {
+    $config = \Drupal::config('media_album_av.settings');
+
+    $media_types = $this->entityTypeManager
+      ->getStorage('media_type')
+      ->loadMultiple();
+
+    foreach ($media_types as $media_type_id => $media_type) {
+      foreach (['category_fields', 'author_fields'] as $config_key) {
+        $field_cfg = $config->get($config_key . '.' . $media_type_id);
+        if ($field_cfg && ($field_cfg['field_name'] ?? '') === $field_name) {
+          return (bool) ($field_cfg['autocreate'] ?? FALSE);
+        }
+      }
+    }
+
+    return FALSE;
   }
 
 }

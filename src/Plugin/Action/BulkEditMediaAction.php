@@ -2,14 +2,13 @@
 
 namespace Drupal\media_album_av_common\Plugin\Action;
 
-use Drupal\Core\Action\ConfigurableActionBase;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\media_album_av_common\Service\DirectoryService;
 use Drupal\media_drop\Traits\MediaFieldFilterTrait;
 use Drupal\media_album_av_common\Traits\FieldWidgetBuilderTrait;
-use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\Core\Ajax\MessageCommand;
 
 /**
  * Bulk edit media with common field values grouping.
@@ -19,10 +18,12 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   label = @Translation("Edit media (grouped)"),
  *   type = "media",
  *   category = @Translation("Media Drop"),
- *   confirm = TRUE
+ *   confirm = TRUE,
+ *   configurable = TRUE,
+ *   prepare_js_function = "prepareBulkEditData",
  * )
  */
-class BulkEditMediaAction extends ConfigurableActionBase implements ContainerFactoryPluginInterface {
+class BulkEditMediaAction extends BaseAlbumAction {
 
   use MediaFieldFilterTrait;
   use FieldWidgetBuilderTrait;
@@ -44,21 +45,16 @@ class BulkEditMediaAction extends ConfigurableActionBase implements ContainerFac
   /**
    * Constructs a BulkEditMediaAction object.
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager) {
-    parent::__construct($configuration, $plugin_id, $plugin_definition);
+  public function __construct(
+    array $configuration,
+    $plugin_id,
+    $plugin_definition,
+    EntityTypeManagerInterface $entity_type_manager,
+    DirectoryService $taxonomy_service,
+  ) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_type_manager, $taxonomy_service);
     $this->entityTypeManager = $entity_type_manager;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
-    return new static(
-      $configuration,
-      $plugin_id,
-      $plugin_definition,
-      $container->get('entity_type.manager')
-    );
+    $this->taxonomyService = $taxonomy_service;
   }
 
   /**
@@ -81,30 +77,10 @@ class BulkEditMediaAction extends ConfigurableActionBase implements ContainerFac
    * {@inheritdoc}
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
-    // =========================================================================
-    // STEP 1: Retrieve selected media IDs from VBO tempstore
-    // =========================================================================
-    $build_info = $form_state->getBuildInfo();
-    $view_id = $build_info['args'][0];
-    $display_id = $build_info['args'][1];
+    $form['#tree'] = TRUE;
 
-    $temp_store_name = "views_bulk_operations_{$view_id}_{$display_id}";
-    $user_id = (string) \Drupal::currentUser()->id();
-
-    $view_tempstore = \Drupal::service('tempstore.private')->get($temp_store_name);
-    $temp_store_data = $view_tempstore->get($user_id);
-
-    if ($temp_store_data && isset($temp_store_data['list'])) {
-      $media_ids = array_map(function ($item) {
-        return is_array($item) ? $item[0] : $item;
-      }, $temp_store_data['list']);
-
-      if (!empty($media_ids)) {
-        $this->mediaEntities = \Drupal::entityTypeManager()
-          ->getStorage('media')
-          ->loadMultiple($media_ids);
-      }
-    }
+    // Keep hidden state handling consistent with other action plugins.
+    $form = parent::buildConfigurationForm($form, $form_state);
 
     // =========================================================================
     // STEP 2: Build the configuration form
@@ -157,32 +133,75 @@ class BulkEditMediaAction extends ConfigurableActionBase implements ContainerFac
           '#markup' => $this->buildFieldValueSummary($value_counts),
         ];
 
-        $form['fields'][$field_name]['actions'] = [
+        $form['fields'][$field_name]['toggles'] = [
           '#type' => 'container',
           '#attributes' => ['class' => ['field-actions']],
         ];
 
-        $form['fields'][$field_name]['actions']['modify'] = [
+        $form['fields'][$field_name]['toggles']['modify'] = [
           '#type' => 'checkbox',
           '#title' => $this->t('Modify this field'),
           '#default_value' => FALSE,
         ];
 
-        $form['fields'][$field_name]['actions']['clear'] = [
+        $form['fields'][$field_name]['toggles']['clear'] = [
           '#type' => 'checkbox',
           '#title' => $this->t('Clear this field'),
           '#default_value' => FALSE,
         ];
 
-        $form['fields'][$field_name]['value'] = $this->buildFieldWidget($field_definition, $common_value);
+        $widget = $this->buildFieldWidget($field_definition, $common_value);
+
+        // Ajouter #autocreate pour les taxonomies si l'option est activée,
+        // comme dans MoveMediaToAlbumAction.
+        $taxonomy_autocreate_enabled = NULL;
+        if (method_exists($field_definition, 'getType') &&
+          $field_definition->getType() === 'entity_reference' &&
+          $field_definition->getSetting('target_type') === 'taxonomy_term') {
+          $taxonomy_autocreate_enabled = FALSE;
+          $handler_settings = $field_definition->getSetting('handler_settings') ?? [];
+          $target_bundles = !empty($handler_settings['target_bundles'])
+            ? $handler_settings['target_bundles'] : NULL;
+          $vocabulary_id = $target_bundles
+            ? array_key_first($target_bundles)
+            : (($handler_settings['auto_create_bundle'] ?? NULL) ?: NULL);
+
+          if ($vocabulary_id && $this->isAutocreateVocabulary($vocabulary_id, $field_name)) {
+            $widget['#autocreate'] = ['bundle' => $vocabulary_id];
+            $taxonomy_autocreate_enabled = TRUE;
+          }
+        }
+
+        // Indication visuelle de l'état d'autocreate, comme dans MoveMediaToAlbumAction.
+        if ($taxonomy_autocreate_enabled === TRUE) {
+          $autocreate_markup = '<p class="media-album-av-autocreate-status is-possible"><strong>'
+            . $this->t('Taxonomy autocreate: possible (new terms can be created).')
+            . '</strong></p>';
+        }
+        elseif ($taxonomy_autocreate_enabled === FALSE) {
+          $autocreate_markup = '<p class="media-album-av-autocreate-status is-impossible"><strong>'
+            . $this->t('Taxonomy autocreate: impossible (only existing terms can be selected).')
+            . '</strong></p>';
+        }
+        else {
+          $autocreate_markup = '';
+        }
+
+        if (!empty($autocreate_markup)) {
+          $form['fields'][$field_name]['autocreate_status'] = [
+            '#markup' => $autocreate_markup,
+          ];
+        }
+
+        $form['fields'][$field_name]['value'] = $widget;
 
         $form['fields'][$field_name]['value']['#states'] = [
           'visible' => [
-            ':input[name="fields[' . $field_name . '][actions][modify]"]' => ['checked' => TRUE],
-            ':input[name="fields[' . $field_name . '][actions][clear]"]' => ['checked' => FALSE],
+            ':input[name="fields[' . $field_name . '][toggles][modify]"]' => ['checked' => TRUE],
+            ':input[name="fields[' . $field_name . '][toggles][clear]"]' => ['checked' => FALSE],
           ],
           'required' => [
-            ':input[name="fields[' . $field_name . '][actions][modify]"]' => ['checked' => TRUE],
+            ':input[name="fields[' . $field_name . '][toggles][modify]"]' => ['checked' => TRUE],
           ],
         ];
       }
@@ -243,6 +262,7 @@ class BulkEditMediaAction extends ConfigurableActionBase implements ContainerFac
 
     foreach ($this->mediaEntities as $media) {
       if ($media->hasField($field_name) && !$media->get($field_name)->isEmpty()) {
+        // Serialize the field to easily compare and deduplicate complex values.
         $values[] = serialize($media->get($field_name)->getValue());
       }
     }
@@ -250,6 +270,7 @@ class BulkEditMediaAction extends ConfigurableActionBase implements ContainerFac
     $unique_values = array_unique($values);
 
     if (count($unique_values) === 1) {
+      // Unserialize the value to get the original field value.
       return unserialize(reset($unique_values));
     }
 
@@ -312,21 +333,6 @@ class BulkEditMediaAction extends ConfigurableActionBase implements ContainerFac
   }
 
   /**
-   * Build a form widget for a field.
-   *
-   * @deprecated Use FieldWidgetBuilderTrait::buildFieldWidget() instead.
-   */
-  protected function buildFieldWidget($field_definition, $default_value) {
-    // Override from trait to customize title for bulk edit context.
-    $widget = parent::buildFieldWidget($field_definition, $default_value);
-
-    // Replace the title with bulk edit specific one.
-    $widget['#title'] = $this->t('New value');
-
-    return $widget;
-  }
-
-  /**
    * {@inheritdoc}
    */
   public function submitConfigurationForm(array &$form, FormStateInterface $form_state) {
@@ -335,8 +341,12 @@ class BulkEditMediaAction extends ConfigurableActionBase implements ContainerFac
 
     $fields = $form_state->getValue('fields');
 
+    if (!is_array($fields)) {
+      return;
+    }
+
     foreach ($fields as $field_name => $field_data) {
-      $actions = $field_data['actions'] ?? [];
+      $actions = $field_data['toggles'] ?? [];
 
       if (!empty($actions['clear'])) {
         $this->configuration['clear_fields'][] = $field_name;
@@ -350,26 +360,19 @@ class BulkEditMediaAction extends ConfigurableActionBase implements ContainerFac
   /**
    * {@inheritdoc}
    */
-  public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
-    // Let parent class handle validation.
-    return parent::validateConfigurationForm($form, $form_state);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
   public function execute($entity = NULL) {
     if (!$entity) {
       return;
     }
 
+    // Appliquer les valeurs de champs via la méthode type-aware de BaseAlbumAction
+    // (gère les taxonomies avec autocreate, entity_reference, boolean, etc.).
     $field_values = $this->configuration['field_values'] ?? [];
     foreach ($field_values as $field_name => $value) {
-      if ($entity->hasField($field_name)) {
-        $entity->set($field_name, $value);
-      }
+      $this->applySingleFieldValueToMedia($entity, $field_name, $value);
     }
 
+    // Vider les champs marqués "clear".
     $clear_fields = $this->configuration['clear_fields'] ?? [];
     foreach ($clear_fields as $field_name) {
       if ($entity->hasField($field_name)) {
@@ -385,42 +388,27 @@ class BulkEditMediaAction extends ConfigurableActionBase implements ContainerFac
    */
   public function executeMultiple(array $entities) {
     $this->mediaEntities = $entities;
-
-    $field_values = $this->configuration['field_values'] ?? [];
-    $clear_fields = $this->configuration['clear_fields'] ?? [];
+    $done = 0;
 
     foreach ($entities as $entity) {
-      foreach ($field_values as $field_name => $value) {
-        if ($entity->hasField($field_name)) {
-          $entity->set($field_name, $value);
-        }
-      }
-
-      foreach ($clear_fields as $field_name) {
-        if ($entity->hasField($field_name)) {
-          $entity->set($field_name, NULL);
-        }
-      }
-
-      $entity->save();
+      $this->execute($entity);
+      $done++;
     }
-  }
 
-  /**
-   * Apply modifications to media.
-   */
-  public function applyChanges() {
-    $field_values = $this->configuration['field_values'];
+    $status = $done > 0 ? 'success' : 'warning';
+    $msg_type = $done > 0 ? 'status' : 'warning';
 
-    foreach ($this->mediaEntities as $media) {
-      foreach ($field_values as $field_name => $value) {
-        if ($media->hasField($field_name)) {
-          $media->set($field_name, $value);
-        }
-      }
-
-      $media->save();
-    }
+    return [
+      'status'   => $status,
+      'response' => [
+        new MessageCommand(
+          $this->t('@count media updated.', ['@count' => $done]),
+          NULL,
+          ['type' => $msg_type]
+        ),
+      ],
+      'edited_ids' => array_keys($entities),
+    ];
   }
 
   /**

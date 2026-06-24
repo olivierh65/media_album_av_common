@@ -57,7 +57,7 @@
     }
 
     // 1. Intercepter les images dès le chargement de la page
-    const images = document.querySelectorAll('.media-album-av-thumbnail img');
+    const images = document.querySelectorAll('img.media-album-av-thumbnail');
 
     if (images.length === 0) return; // Sécurité si on est pas sur la bonne page
 
@@ -109,7 +109,7 @@
       Drupal.behaviors.myThrottledAlbumLazyload = {
         attach: function (context, settings) {
           // On cible uniquement les nouveaux éléments ajoutés au DOM par Drupal
-          const newImages = context.querySelectorAll('.media-album-av-thumbnail img:not([data-throttled])');
+          const newImages = context.querySelectorAll('img.media-album-av-thumbnail:not([data-throttled])');
           newImages.forEach(img => {
             const realSrc = img.src;
             if (!realSrc || realSrc === placeholder) return;

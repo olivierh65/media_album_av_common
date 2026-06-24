@@ -72,3 +72,9 @@ action-config-status:
       css/action-config-status.css: {}
 
 
+image-throttle:
+  version: 1.x
+  js:
+    js/image-throttle.js: {}
+  dependencies:
+    - core/drupal
